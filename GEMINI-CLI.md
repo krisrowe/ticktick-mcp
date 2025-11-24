@@ -103,6 +103,12 @@ gemini mcp add ticktick \
   --scope user
 ```
 
+**Important:** The `$TICKTICK_ACCESS_TOKEN` in the command above is expanded by your shell to the actual token value before being passed to `gemini mcp add`. This means:
+1. `source .env` loads the token into your shell's environment
+2. The shell expands `$TICKTICK_ACCESS_TOKEN` to the actual token value from your `.env` file
+3. Gemini CLI receives the actual token value via `--env`
+4. Gemini CLI stores that actual token value in `settings.json` (not the variable reference)
+
 **Note:** With stdio transport, Gemini CLI will:
 - Start the container automatically when connecting
 - Stop and remove the container when done (due to `--rm` flag)
@@ -158,6 +164,8 @@ gemini mcp add ticktick \
 }
 ```
 
+**Important Security Note:** When you use `gemini mcp add` with `--env "TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN"`, your shell expands `$TICKTICK_ACCESS_TOKEN` to the actual token value before passing it to Gemini CLI. Gemini CLI then stores that actual token value (not the variable reference) in plain text in your `settings.json` file (either `~/.gemini/settings.json` for user scope or `.gemini/settings.json` for project scope). This file should have restricted permissions (600 recommended) and should never be committed to version control.
+
 **Note:** The token is passed at registration time. If your token expires, you'll need to re-register with the new token.
 
 ## Switching from HTTP to Stdio Transport
@@ -187,6 +195,8 @@ If you're currently using HTTP transport and want to switch to auto-start mode:
      --env "TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN" \
      --scope user
    ```
+   
+   **Note:** The shell expands `$TICKTICK_ACCESS_TOKEN` to the actual token value before passing it to `gemini mcp add`, so the actual token value gets stored in `settings.json`.
 
 4. **Verify it works:**
    ```bash
@@ -210,7 +220,18 @@ When you configure the TickTick MCP server, Gemini CLI creates `settings.json` f
 
 See the configuration examples above for both HTTP and stdio transport options.
 
-**Important:** If your `settings.json` contains actual tokens (not environment variable references), do not commit it to version control. Use environment variable references like `${TICKTICK_ACCESS_TOKEN}` instead.
+**Important Security:** 
+
+- **Token Storage:** When you use `gemini mcp add` with `--env`, the actual token value is stored in plain text in your `settings.json` file. This is the expected behavior for local development.
+
+- **File Permissions:** Ensure your `settings.json` file has restricted permissions:
+  ```bash
+  chmod 600 ~/.gemini/settings.json  # User scope
+  # or
+  chmod 600 .gemini/settings.json    # Project scope
+  ```
+
+- **Version Control:** Never commit `settings.json` files containing actual tokens to version control. The `.gemini/` directory should be in your `.gitignore`. If you need to share configuration, use environment variable references like `${TICKTICK_ACCESS_TOKEN}` in the `env` section, but note that Gemini CLI may still store the resolved value when using `gemini mcp add`.
 
 ## Verifying Configuration
 
