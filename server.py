@@ -5,8 +5,9 @@ import logging # For proper logging to stderr
 from typing import Any, Dict, List, Optional
 from pydantic import Field
 
-# Initialize logging to stderr
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Initialize logging
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=log_level, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 

@@ -26,3 +26,51 @@ Before committing any changes, especially to code, examples, or documentation, p
 *   **Names and Emails:** Do not include anyone's real name, email address, or any other personally identifiable information. Use generic placeholders (e.g., "John Doe", "example@email.com") instead.
 *   **Real IDs/Secrets:** Ensure all task IDs, project IDs, client IDs/secrets, or any other API-related identifiers are generic placeholders in examples and documentation.
 *   **Hardcoded Credentials:** Double-check that no API keys, tokens, or other credentials are hardcoded anywhere in the repository.
+
+## Making and Testing Code Changes
+
+When making changes to the MCP server code (e.g., in `server.py`), it is crucial to rebuild the Docker image and restart the Gemini CLI to ensure the changes are applied.
+
+### Development Workflow
+
+1.  **Make Code Changes:** Modify the server code as required (e.g., adding a new tool to `server.py`).
+2.  **Rebuild the Docker Image:** After making changes, you must rebuild the `ticktick-mcp-server:latest` Docker image. Run the following command from the `ticktick-access` directory:
+    ```bash
+    docker build -t ticktick-mcp-server:latest .
+    ```
+    If you suspect that Docker's cache is preventing your changes from being included, use the `--no-cache` flag:
+    ```bash
+    docker build --no-cache -t ticktick-mcp-server:latest .
+    ```
+3.  **Restart the Gemini CLI:** The Gemini CLI starts the MCP server in a Docker container. To ensure the CLI uses the newly built image, you **must restart the Gemini CLI**.
+4.  **Test the Changes:** After restarting the CLI, test your changes by invoking the relevant tools.
+
+### Enabling Debug Logging
+
+To help with troubleshooting, you can enable debug-level logging for the MCP server. This is controlled by the `LOG_LEVEL` environment variable.
+
+To enable debug logging, you need to modify your `~/.gemini/settings.json` file to pass the `LOG_LEVEL` environment variable to the Docker container.
+
+1.  **Add `LOG_LEVEL` to the `args` array:**
+    ```json
+    "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "TICKTICK_ACCESS_TOKEN",
+        "-e", 
+        "LOG_LEVEL", 
+        "ticktick-mcp-server:latest",
+        "python",
+        "server-stdio.py"
+    ],
+    ```
+2.  **Add `LOG_LEVEL` to the `env` dictionary:**
+    ```json
+    "env": {
+        "TICKTICK_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN",
+        "LOG_LEVEL": "DEBUG" 
+    }
+    ```
+3.  **Restart the Gemini CLI** for the new settings to take effect.
