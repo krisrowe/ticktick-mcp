@@ -159,15 +159,6 @@ docker logs -f ticktick-mcp-server
 docker rm -f ticktick-mcp-server
 ```
 
-**Rebuild and restart (after code changes):**
-```bash
-docker stop ticktick-mcp-server
-docker rm ticktick-mcp-server
-docker build -t ticktick-mcp-server:latest .
-source .env
-docker run -d --name ticktick-mcp-server -p 8000:8000 -e TICKTICK_ACCESS_TOKEN="$TICKTICK_ACCESS_TOKEN" ticktick-mcp-server:latest
-```
-
 **Optional: Using the convenience script** (`start-server.sh`):
 For HTTP transport users who want a convenience wrapper, you can use the provided `start-server.sh` script:
 ```bash
