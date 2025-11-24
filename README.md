@@ -21,6 +21,8 @@ To use this project, you must provide your own TickTick API credentials in a `.e
     TICKTICK_CLIENT_SECRET="your_client_secret"
     ```
     
+    If you already have a `TICKTICK_ACCESS_TOKEN` in your `.env` file, you do not need to generate a new one unless it has expired. Refer to `API_EXAMPLES.md` for details on how to generate or refresh your token.
+    
     *(Please let me know if these variable names are incorrect.)*
 
 ### Synchronizing Configuration (`.ws-sync` and `devws`)
