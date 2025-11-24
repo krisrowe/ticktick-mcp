@@ -82,29 +82,61 @@ export $(cat .env | xargs)
 
 ### Example API Calls
 
-*(Note: These examples will be filled in once a valid access token is confirmed and the API endpoints are successfully tested.)*
+*Note: The `... | jq` at the end of the commands is optional, but recommended. It pipes the JSON output to the `jq` tool for pretty-printing, making it much easier to read.*
 
 #### List all Projects
+
+This command fetches all of your projects (which TickTick also refers to as "lists").
+
 ```bash
-# To be filled in...
+curl -X GET "https://api.ticktick.com/open/v1/project" \
+     -H "Authorization: Bearer $TICKTICK_ACCESS_TOKEN" | jq
 ```
 
-#### List Tasks (up to 50)
+#### Work Project ID
+
+For the following examples, we will use the "Work" project, which has the ID `YOUR_PROJECT_ID`. You can replace this with any other project ID you obtain from the "List all Projects" call.
+
+#### List Tasks in the "Work" Project
+
+This command fetches all the data, including tasks, for the "Work" project.
+
 ```bash
-# To be filled in...
+curl -X GET "https://api.ticktick.com/open/v1/project/YOUR_PROJECT_ID/data" \
+     -H "Authorization: Bearer $TICKTICK_ACCESS_TOKEN" | jq
 ```
 
-#### Add a Dummy Task
+#### Add a Dummy Task to the "Work" Project
+
+This command adds a new task to the "Work" project. The response will contain the `id` of the newly created task, which you will need for updating or deleting it.
+
 ```bash
-# To be filled in...
+curl -X POST "https://api.ticktick.com/open/v1/task" \
+     -H "Authorization: Bearer $TICKTICK_ACCESS_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{
+         "projectId": "YOUR_PROJECT_ID",
+         "title": "This is a dummy task from API"
+     }' | jq
+```
+*(Remember to capture the `id` from the response of this command for the next steps.)*
+
+#### Mark a Task as Complete (To Be Determined)
+
+The endpoint and method for updating a task (e.g., to mark it as complete) could not be determined through API exploration using common REST patterns (`PUT` or `POST` to `/open/v1/task/{taskId}` or `/open/v1/project/{projectId}/task/{taskId}`). These attempts resulted in errors or empty responses.
+
+```bash
+# The correct endpoint and payload for updating a task is currently unknown.
+# Example of what was tried and resulted in an error:
+# curl -X POST "https://api.ticktick.com/open/v1/task/YOUR_TASK_ID" -d '{"status": 1}' ...
 ```
 
-#### Mark a Task as Complete
-```bash
-# To be filled in...
-```
+#### Delete a Task (To Be Determined)
 
-#### Delete a Task
+The endpoint and method for deleting a task could not be determined through API exploration.
+
 ```bash
-# To be filled in...
+# The correct endpoint for deleting a task is currently unknown.
+# Example of what was tried and resulted in an error:
+# curl -X DELETE "https://api.ticktick.com/open/v1/task/YOUR_TASK_ID" ...
 ```
