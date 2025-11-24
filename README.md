@@ -17,8 +17,6 @@ To use this project, you must provide your own TickTick API credentials in a `.e
 
     ```bash
     # .env
-    TICKTICK_USERNAME="your_email@example.com"
-    TICKTICK_PASSWORD="your_password"
     TICKTICK_CLIENT_ID="your_client_id"
     TICKTICK_CLIENT_SECRET="your_client_secret"
     ```
@@ -36,3 +34,7 @@ For automated backup and restoration of these files, we recommend using the `dev
 *   **`devws` Repository**: [https://github.com/krisrowe/chromeos-dev-setup](https://github.com/krisrowe/chromeos-dev-setup)
 
 Please note that the `devws` CLI is not yet publicly available. Until it is, you should manually manage your `.env` file and any other files listed in `.ws-sync`.
+
+## API Usage
+
+For detailed instructions on how to authenticate with the TickTick API and for `curl` examples of common operations, please see the **[API Examples & Authentication Guide](./API_EXAMPLES.md)**.
