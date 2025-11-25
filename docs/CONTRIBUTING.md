@@ -6,6 +6,127 @@ This document outlines guidelines and best practices for contributors working on
 
 For local development without Docker, refer to the "Alternative: Local Development Setup" section in `README.md`.
 
+### Setting Up Development Dependencies
+
+To run tests and linting, you'll need to install the development dependencies:
+
+1. **Create and activate a virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+2. **Install the project with development dependencies:**
+   ```bash
+   pip install -e ".[dev]"
+   ```
+
+   This installs:
+   - `pytest` and `pytest-asyncio` for running tests
+   - `respx` for mocking HTTP requests in tests
+   - `ruff` for linting and code formatting
+
+## 1.1. Running Tests
+
+The project includes a comprehensive test suite using `pytest`. All tests use mocked HTTP requests (via `respx`) so they run without network calls.
+
+### Running All Tests
+
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate
+
+# Run all tests with verbose output
+pytest tests/unit/test_server.py -v
+```
+
+### Running Specific Tests
+
+```bash
+# Run a specific test by name
+pytest tests/unit/test_server.py::test_get_ticktick_projects -v
+
+# Run tests matching a pattern
+pytest tests/unit/test_server.py -k "update_task" -v
+```
+
+### Test Coverage
+
+The test suite currently includes 11 tests covering:
+- ✅ Core HTTP request functionality (`make_ticktick_request`)
+- ✅ Getting list of projects (`get_ticktick_projects`)
+- ✅ Getting list of tasks in a project (`get_ticktick_tasks`)
+- ✅ Getting details of a task (via `make_ticktick_request` with GET `task/{task_id}`)
+- ✅ Updating a task (`update_task`)
+- ✅ Error handling for all operations
+- ✅ Authorization header verification
+
+## 1.2. Running Linting
+
+The project uses `ruff` for linting and code formatting.
+
+### Check for Linting Issues
+
+```bash
+# Ensure virtual environment is activated
+source venv/bin/activate
+
+# Check for linting errors
+ruff check server.py tests/
+```
+
+### Auto-fix Linting Issues
+
+```bash
+# Fix auto-fixable linting issues
+ruff check --fix server.py tests/
+```
+
+### Code Formatting
+
+```bash
+# Check if files need formatting
+ruff format --check server.py tests/
+
+# Format files automatically
+ruff format server.py tests/
+```
+
+### Linting Configuration
+
+Linting rules are configured in `pyproject.toml`:
+- Line length: 120 characters
+- Enabled checks: pycodestyle errors/warnings, pyflakes, isort, pep8-naming, pyupgrade, flake8-comprehensions, flake8-bugbear
+- Complexity checks enabled (C901)
+
+### Pre-commit Checklist
+
+Before committing code, ensure:
+1. ✅ All tests pass: `pytest tests/unit/test_server.py -v`
+2. ✅ No linting errors: `ruff check server.py tests/`
+3. ✅ Code is properly formatted: `ruff format --check server.py tests/`
+
+## 1.3. Manual Integration Testing
+
+For detailed instructions on manual functional integration testing, see [INTEGRATION-TESTING.md](./INTEGRATION-TESTING.md).
+
+**Quick Start (Recommended):**
+```bash
+# Simple Python script that tests functions directly (no Docker/HTTP needed)
+source venv/bin/activate
+source .env
+python test_integration_simple.py
+```
+
+This guide covers:
+- **Simple Python script** - Direct function testing (recommended, no Docker/SSE complexity)
+- Testing `list_projects` tool
+- Testing `list_tasks` tool
+- Testing getting task details
+- Testing `update_task` tool
+- Error case testing
+- Docker + curl testing (advanced, requires SSE handling)
+
 ## 2. Testing Tool Changes
 
 When you make changes to existing tools (e.g., in `server.py`) or add new ones, you need to ensure these changes are properly tested within a consistent environment. The recommended approach for testing tool changes is by using Docker.

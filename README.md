@@ -2,15 +2,17 @@
 
 This project provides tools and examples for personal agentic access to the TickTick task platform's API. It now includes a **Model Context Protocol (MCP) server** to provide a unified interface for managing tasks and other data, making it easily consumable by LLMs like Gemini CLI and Claude Desktop.
 
+TickTick is a robust task management platform, ideal for anyone looking to efficiently track their tasks. It's particularly well-suited for engineers juggling multiple projects and seeking to automate their workflow across various platforms.
+
 ## Features
 
 *   **MCP Server:** Exposes TickTick functionalities as Resources and Tools for LLMs with comprehensive documentation.
-*   **OAuth 2.0 Integration:** Uses `get_token.py` to facilitate OAuth 2.0 authorization for secure API access.
+*   **OAuth 2.0 Integration:** Uses `scripts/get_token.py` to facilitate OAuth 2.0 authorization for secure API access.
 *   **Task Management:** MCP Tools for creating, listing, and completing tasks with full input/output schemas.
 *   **Data Retrieval:** MCP Resources for listing projects and tasks with detailed descriptions.
 *   **Auto-Discovery:** Tools and resources are automatically discovered by MCP clients with descriptions, schemas, and metadata.
 
-For detailed documentation of all available tools and resources, see [TOOLS.md](./TOOLS.md).
+For detailed documentation of all available tools and resources, see [docs/TOOLS.md](./docs/TOOLS.md).
 
 ## Setup
 
@@ -20,7 +22,7 @@ For detailed documentation of all available tools and resources, see [TOOLS.md](
 *   **MCP Client**: An MCP-compatible client such as Gemini CLI, Claude Desktop, or MCP Inspector
 *   **TickTick Developer Account**: You'll need to register an application on the TickTick Developer Portal (see Authentication section below)
 
-> **For Gemini CLI users:** See [GEMINI-CLI.md](./GEMINI-CLI.md) for detailed Gemini CLI-specific configuration instructions after completing the Docker setup below.
+> **For Gemini CLI users:** See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for detailed Gemini CLI-specific configuration instructions after completing the Docker setup below.
 
 ## Quick Start: Docker Setup (Recommended)
 
@@ -51,7 +53,7 @@ Before building and running the Docker container, you need to set up authenticat
 
 3.  **Obtain `TICKTICK_ACCESS_TOKEN`:**
     ```bash
-    python get_token.py
+    python scripts/get_token.py
     ```
     This script will:
     *   Open your web browser for authorization.
@@ -59,9 +61,9 @@ Before building and running the Docker container, you need to set up authenticat
     *   It will print the `access_token` and automatically save/update it in your `.env` file as `TICKTICK_ACCESS_TOKEN`.
 
     **Note:** TickTick API access tokens typically expire after a certain period (e.g., 24 hours). When a token expires, API calls will start to fail with authentication errors (e.g., HTTP 401 Unauthorized). To update your token:
-    1. Re-run `python get_token.py` to get a new token
+    1. Re-run `python scripts/get_token.py` to get a new token
     2. For HTTP transport: Stop and restart the Docker container with the new token (see Step 3)
-    3. For stdio transport (auto-start): Re-register your MCP client with the new token (see [GEMINI-CLI.md](./GEMINI-CLI.md) for Gemini CLI instructions)
+    3. For stdio transport (auto-start): Re-register your MCP client with the new token (see [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for Gemini CLI instructions)
 
 ### Step 2: Build the Docker Image
 
@@ -159,14 +161,14 @@ docker logs -f ticktick-mcp-server
 docker rm -f ticktick-mcp-server
 ```
 
-**Optional: Using the convenience script** (`start-server.sh`):
-For HTTP transport users who want a convenience wrapper, you can use the provided `start-server.sh` script:
+**Optional: Using the convenience script** (`scripts/start-server.sh`):
+For HTTP transport users who want a convenience wrapper, you can use the provided `scripts/start-server.sh` script:
 ```bash
-./start-server.sh
+./scripts/start-server.sh
 ```
 This script automatically checks if the container is running, starts it if stopped, or creates it if it doesn't exist. It handles loading the token from `.env` and building the image if needed.
 
-**Note:** For stdio transport (recommended), this script is not needed as Gemini CLI handles container lifecycle automatically. See [GEMINI-CLI.md](./GEMINI-CLI.md) for stdio transport setup.
+**Note:** For stdio transport (recommended), this script is not needed as Gemini CLI handles container lifecycle automatically. See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for stdio transport setup.
 
 ---
 
@@ -234,7 +236,7 @@ The server supports two transport modes:
 
 ### Client-Specific Configuration
 
-*   **Gemini CLI**: See [GEMINI-CLI.md](./GEMINI-CLI.md) for detailed configuration instructions, including both HTTP and stdio transport options.
+*   **Gemini CLI**: See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for detailed configuration instructions, including both HTTP and stdio transport options.
 
 *   **Other MCP Clients** (Claude Desktop, MCP Inspector, etc.):
     *   For HTTP transport: Configure the client to connect to `http://localhost:8000/mcp` and ensure the Docker container is running (see Step 3).
@@ -264,7 +266,7 @@ docker logs ticktick-mcp-server
 
 # Common issues:
 # - Missing TICKTICK_ACCESS_TOKEN: Ensure you've sourced .env before running docker run
-# - Invalid token: Re-run python get_token.py to get a fresh token
+# - Invalid token: Re-run python scripts/get_token.py to get a fresh token
 ```
 
 **"Container name already in use" error:**
@@ -285,12 +287,12 @@ docker rm -f ticktick-mcp-server
 6. Verify the container is listening on port 8000: `docker ps | grep 8000`
 7. Check firewall settings if using a remote Docker host
 
-**For Gemini CLI-specific troubleshooting:** See [GEMINI-CLI.md](./GEMINI-CLI.md#troubleshooting)
+**For Gemini CLI-specific troubleshooting:** See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md#troubleshooting)
 
 ### Authentication Issues
 
 **401 Unauthorized errors:**
-- Your `TICKTICK_ACCESS_TOKEN` has likely expired. Re-run `python get_token.py` to get a new token, then restart the container.
+- Your `TICKTICK_ACCESS_TOKEN` has likely expired. Re-run `python scripts/get_token.py` to get a new token, then restart the container.
 
 **Token not found errors:**
 - Ensure you've run `source .env` before the `docker run` command
@@ -311,7 +313,7 @@ When using an MCP client like Gemini CLI or the MCP Inspector, you should see:
 - Output structure information
 - Resource URI patterns and descriptions
 
-For a complete reference of all tools and resources, see [TOOLS.md](./TOOLS.md).
+For a complete reference of all tools and resources, see [docs/TOOLS.md](./docs/TOOLS.md).
 
 ## Limitations (MCP Server)
 
@@ -322,16 +324,10 @@ For a complete reference of all tools and resources, see [TOOLS.md](./TOOLS.md).
 
 ### Appendix: Direct TickTick V1 API Usage
 
-For detailed instructions on how to authenticate with the TickTick API and for `curl` examples of common operations, please see the **[Vendor API Guide](./VENDOR-API.md)**.
+For detailed instructions on how to authenticate with the TickTick API and for `curl` examples of common operations, please see the **[Vendor API Guide](./docs/VENDOR-API.md)**.
 
-## Synchronizing Configuration (`.ws-sync` and `devws`)
+## Synchronizing Configuration (`.ws-sync`)
 
 The `.env` file is listed in `.gitignore` and will not be committed. To manage this and other important local files across different workstations, this project includes a `.ws-sync` file.
 
 The `.ws-sync` file is simply an inventory of files that are not part of the git repository but are essential for the project to run. These are files that you need to manually maintain and synchronize between your development environments.
-
-For automated backup and restoration of these files, we recommend using the `devws` (Development Workstation Setup) CLI tool.
-
-*   **`devws` Repository**: [https://github.com/krisrowe/chromeos-dev-setup](https://github.com/krisrowe/chromeos-dev-setup)
-
-Please note that the `devws` CLI is not yet publicly available. Until it is, you should manually manage your `.env` file and any other files listed in `.ws-sync`.

@@ -19,13 +19,14 @@ if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
 fi
 
 # Container doesn't exist, need to create it
-# Load environment variables from .env file
+# Load environment variables from .env file in repo root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="${SCRIPT_DIR}/.env"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+ENV_FILE="${REPO_ROOT}/.env"
 
 if [ ! -f "${ENV_FILE}" ]; then
     echo "Error: .env file not found at ${ENV_FILE}" >&2
-    echo "Please create .env file with TICKTICK_ACCESS_TOKEN" >&2
+    echo "Please create .env file in the repo root with TICKTICK_ACCESS_TOKEN" >&2
     exit 1
 fi
 
@@ -40,7 +41,7 @@ fi
 # Check if image exists
 if ! docker images --format '{{.Repository}}:{{.Tag}}' | grep -q "^${IMAGE_NAME}$"; then
     echo "Docker image ${IMAGE_NAME} not found. Building..." >&2
-    docker build -t "${IMAGE_NAME}" "${SCRIPT_DIR}" >&2
+    docker build -t "${IMAGE_NAME}" "${REPO_ROOT}" >&2
 fi
 
 # Create and start the container

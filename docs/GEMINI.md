@@ -27,6 +27,29 @@ Before committing any changes, especially to code, examples, or documentation, p
 *   **Real IDs/Secrets:** Ensure all task IDs, project IDs, client IDs/secrets, or any other API-related identifiers are generic placeholders in examples and documentation.
 *   **Hardcoded Credentials:** Double-check that no API keys, tokens, or other credentials are hardcoded anywhere in the repository.
 
+## Pre-Commit Checks
+
+Before committing any changes, it is essential to run the following checks to maintain code quality and ensure tests are passing:
+
+1.  **Run Tests:** Execute unit tests to ensure all functionality works as expected and no regressions have been introduced.
+    ```bash
+    PYTHONPATH=. ./.venv/bin/pytest
+    ```
+    All tests must pass.
+
+2.  **Run Linter:** Check for code style and potential issues using Ruff.
+    ```bash
+    PYTHONPATH=. ./.venv/bin/ruff check .
+    ```
+    All checks must pass with no errors reported. If Ruff reports fixable issues, you can auto-fix them:
+    ```bash
+    PYTHONPATH=. ./.venv/bin/ruff check . --fix
+    ```
+    Then, it's good practice to run `ruff format .` to ensure consistent code formatting:
+    ```bash
+    PYTHONPATH=. ./.venv/bin/ruff format .
+    ```
+
 ## Making and Testing Code Changes
 
 When making changes to the MCP server code (e.g., in `server.py`), it is crucial to rebuild the Docker image and restart the Gemini CLI to ensure the changes are applied.
