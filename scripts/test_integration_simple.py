@@ -7,6 +7,7 @@ without needing to deal with HTTP/SSE complexity.
 import asyncio
 import os
 import sys
+
 from server import (
     get_ticktick_projects,
     get_ticktick_tasks,
@@ -108,6 +109,7 @@ async def main():
     # Load token from .env if available
     if os.path.exists(".env"):
         from dotenv import load_dotenv
+
         load_dotenv()
 
     token = os.getenv("TICKTICK_ACCESS_TOKEN")
