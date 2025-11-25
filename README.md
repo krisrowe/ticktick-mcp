@@ -1,6 +1,6 @@
 # MCP Server for Task Management using TickTick
 
-This project provides tools and examples for personal agentic access to the TickTick task platform's API. It now includes a **Model Context Protocol (MCP) server** to provide a unified interface for managing tasks and other data, making it easily consumable by LLMs like Gemini CLI and Claude Desktop.
+This project provides tools and examples for personal agentic access to the TickTick task platform's API. It now includes a **Model Context Protocol (MCP) server** to provide a unified interface for managing tasks and other data, making it easily consumable by LLMs like Gemini CLI, Gemini Code Assist (VS Code), and Claude Desktop.
 
 TickTick is a robust task management platform, ideal for anyone looking to efficiently track their tasks. It's particularly well-suited for engineers juggling multiple projects and seeking to automate their workflow across various platforms.
 
@@ -19,10 +19,10 @@ For detailed documentation of all available tools and resources, see [docs/TOOLS
 ### Prerequisites
 
 *   **Docker**: Docker must be installed and running on your system. [Install Docker](https://www.docker.com/get-started)
-*   **MCP Client**: An MCP-compatible client such as Gemini CLI, Claude Desktop, or MCP Inspector
+*   **MCP Client**: An MCP-compatible client such as Gemini CLI, Gemini Code Assist (VS Code), Claude Desktop, or MCP Inspector
 *   **TickTick Developer Account**: You'll need to register an application on the TickTick Developer Portal (see Authentication section below)
 
-> **For Gemini CLI users:** See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for detailed Gemini CLI-specific configuration instructions after completing the Docker setup below.
+> **For Gemini CLI and Gemini Code Assist users:** See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for detailed configuration instructions. The same configuration works for both Gemini CLI and Gemini Code Assist extension in VS Code. Note: IntelliJ's Gemini Code Assist plugin does not currently support MCP servers.
 
 ## Quick Start: Docker Setup (Recommended)
 
@@ -63,7 +63,7 @@ Before building and running the Docker container, you need to set up authenticat
     **Note:** TickTick API access tokens typically expire after a certain period (e.g., 24 hours). When a token expires, API calls will start to fail with authentication errors (e.g., HTTP 401 Unauthorized). To update your token:
     1. Re-run `python scripts/get_token.py` to get a new token
     2. For HTTP transport: Stop and restart the Docker container with the new token (see Step 3)
-    3. For stdio transport (auto-start): Re-register your MCP client with the new token (see [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for Gemini CLI instructions)
+    3. For stdio transport (auto-start): Re-register your MCP client with the new token (see [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for Gemini CLI/Code Assist instructions)
 
 ### Step 2: Build the Docker Image
 
@@ -168,7 +168,7 @@ For HTTP transport users who want a convenience wrapper, you can use the provide
 ```
 This script automatically checks if the container is running, starts it if stopped, or creates it if it doesn't exist. It handles loading the token from `.env` and building the image if needed.
 
-**Note:** For stdio transport (recommended), this script is not needed as Gemini CLI handles container lifecycle automatically. See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for stdio transport setup.
+**Note:** For stdio transport (recommended), this script is not needed as Gemini CLI and Gemini Code Assist handle container lifecycle automatically. See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for stdio transport setup.
 
 ---
 
@@ -236,7 +236,7 @@ The server supports two transport modes:
 
 ### Client-Specific Configuration
 
-*   **Gemini CLI**: See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for detailed configuration instructions, including both HTTP and stdio transport options.
+*   **Gemini CLI and Gemini Code Assist (VS Code)**: See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md) for detailed configuration instructions, including both HTTP and stdio transport options. The same configuration works for both Gemini CLI and Gemini Code Assist extension in VS Code. Note: IntelliJ's Gemini Code Assist plugin does not currently support MCP servers.
 
 *   **Other MCP Clients** (Claude Desktop, MCP Inspector, etc.):
     *   For HTTP transport: Configure the client to connect to `http://localhost:8000/mcp` and ensure the Docker container is running (see Step 3).
@@ -287,7 +287,7 @@ docker rm -f ticktick-mcp-server
 6. Verify the container is listening on port 8000: `docker ps | grep 8000`
 7. Check firewall settings if using a remote Docker host
 
-**For Gemini CLI-specific troubleshooting:** See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md#troubleshooting)
+**For Gemini CLI and Gemini Code Assist troubleshooting:** See [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md#troubleshooting)
 
 ### Authentication Issues
 
@@ -307,7 +307,7 @@ This MCP server provides comprehensive tool and resource discovery:
 - **Resources:** All resources include descriptions explaining their purpose and usage
 - **Auto-Discovery:** MCP clients automatically discover available tools and resources with full metadata
 
-When using an MCP client like Gemini CLI or the MCP Inspector, you should see:
+When using an MCP client like Gemini CLI, Gemini Code Assist, or the MCP Inspector, you should see:
 - Tool names with descriptions
 - Input parameter details (names, types, descriptions, required/optional)
 - Output structure information

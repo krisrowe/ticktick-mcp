@@ -1,15 +1,29 @@
-# Configuring TickTick MCP Server with Gemini CLI
+# Configuring TickTick MCP Server with Gemini CLI and Gemini Code Assist
 
-This document outlines how to configure the TickTick MCP Server (developed in this repository) for use with the Gemini CLI. This will allow you to leverage Gemini CLI's capabilities to interact with your TickTick tasks and projects.
+This document outlines how to configure the TickTick MCP Server (developed in this repository) for use with Gemini CLI and Gemini Code Assist extension in VS Code. The same configuration works for both clients, as they share the same `settings.json` configuration system.
+
+**Note:** IntelliJ's Gemini Code Assist plugin does not currently support MCP servers. This configuration only works with Gemini CLI and VS Code's Gemini Code Assist extension.
 
 ## Prerequisites
 
 *   **Docker Setup Complete:** Follow the Docker setup steps in the main [README.md](./README.md) to build the Docker image and obtain your `TICKTICK_ACCESS_TOKEN`.
-*   **Gemini CLI Installed:** You need to have the Gemini CLI installed and configured on your system. [Install Gemini CLI](https://google-gemini.github.io/gemini-cli/)
+*   **Gemini CLI or Gemini Code Assist Installed:** 
+    *   For Gemini CLI: Install and configure on your system. [Install Gemini CLI](https://google-gemini.github.io/gemini-cli/)
+    *   For Gemini Code Assist: Install the extension in VS Code from the VS Code marketplace.
+
+## Shared Configuration
+
+**Important:** Gemini CLI and Gemini Code Assist extension in VS Code share the same configuration system. When you configure the MCP server using `gemini mcp add` (or by manually editing `settings.json`), the configuration is automatically available to:
+- Gemini CLI (command-line interface)
+- Gemini Code Assist in VS Code
+
+Both clients read from the same `~/.gemini/settings.json` (user scope) or `.gemini/settings.json` (project scope) configuration files.
+
+**Note:** IntelliJ's Gemini Code Assist plugin does not currently support MCP servers. See the [official documentation](https://developers.google.com/gemini-code-assist/docs/use-agentic-chat-pair-programmer#control-built-in-tool-use) for details.
 
 ## Configuration Options
 
-You have two options for configuring the TickTick MCP server with Gemini CLI:
+You have two options for configuring the TickTick MCP server with Gemini CLI and Gemini Code Assist (VS Code):
 
 ### Option A: HTTP Transport (Manual Container Management)
 
@@ -59,7 +73,7 @@ You can also manually edit your Gemini CLI `settings.json` file. Here are exampl
 }
 ```
 
-**Important:** Before using Gemini CLI, ensure the Docker container is running:
+**Important:** Before using Gemini CLI or Gemini Code Assist (VS Code), ensure the Docker container is running:
 ```bash
 docker ps | grep ticktick-mcp-server
 # If not running, start it:
@@ -69,7 +83,7 @@ docker run -d --name ticktick-mcp-server -p 8000:8000 -e TICKTICK_ACCESS_TOKEN="
 
 ### Option B: Stdio Transport (Auto-Start Container) - Recommended
 
-**The Solution:** Gemini CLI can automatically start Docker containers when using **stdio transport** instead of HTTP. This means:
+**The Solution:** Gemini CLI and Gemini Code Assist (VS Code) can automatically start Docker containers when using **stdio transport** instead of HTTP. This means:
 - ✅ No need to run `docker run -d` manually
 - ✅ Container starts automatically when Gemini CLI connects
 - ✅ Container stops automatically when done (with `--rm` flag)
@@ -82,9 +96,9 @@ docker run -d --name ticktick-mcp-server -p 8000:8000 -e TICKTICK_ACCESS_TOKEN="
 - Container persists until you stop it
 
 **Stdio Transport (Auto-Start):**
-- Gemini CLI runs the `docker` command when connecting
+- Gemini CLI or Gemini Code Assist (VS Code) runs the `docker` command when connecting
 - Container starts automatically
-- Container stops automatically when Gemini CLI disconnects
+- Container stops automatically when the client disconnects
 
 #### Using `gemini mcp add` Command
 
@@ -109,7 +123,7 @@ gemini mcp add ticktick \
 3. Gemini CLI receives the actual token value via `--env`
 4. Gemini CLI stores that actual token value in `settings.json` (not the variable reference)
 
-**Note:** With stdio transport, Gemini CLI will:
+**Note:** With stdio transport, Gemini CLI and Gemini Code Assist (VS Code) will:
 - Start the container automatically when connecting
 - Stop and remove the container when done (due to `--rm` flag)
 - You don't need to manually manage the container lifecycle
@@ -206,16 +220,16 @@ If you're currently using HTTP transport and want to switch to auto-start mode:
 
 ## Configuration File Locations
 
-When you configure the TickTick MCP server, Gemini CLI creates `settings.json` files in these locations:
+When you configure the TickTick MCP server using `gemini mcp add`, the configuration is written to `settings.json` files that are shared by Gemini CLI and Gemini Code Assist (VS Code):
 
 1. **`.gemini/settings.json`** (project scope)
    - Created when running `gemini mcp add` from the `ticktick-mcp` directory (or without `--scope user`)
-   - Only available when running Gemini CLI from that directory or subdirectories
+   - Only available when running Gemini CLI from that directory or subdirectories, or when opening that directory in VS Code with Gemini Code Assist
    - Example location: `~/your-workspace/ticktick-mcp/.gemini/settings.json`
 
 2. **`~/.gemini/settings.json`** (user scope)
    - Created when running `gemini mcp add` with `--scope user`
-   - Available when running Gemini CLI from any directory
+   - Available when running Gemini CLI from any directory, or when using Gemini Code Assist in VS Code from any workspace
    - Example location: `~/.gemini/settings.json` (in your home directory)
 
 See the configuration examples above for both HTTP and stdio transport options.
@@ -237,6 +251,7 @@ See the configuration examples above for both HTTP and stdio transport options.
 
 After configuring, verify the server is connected:
 
+**For Gemini CLI:**
 ```bash
 gemini mcp list
 ```
@@ -248,19 +263,29 @@ Configured MCP servers:
 ✓ ticktick: http://localhost:8000/mcp (http) - Connected
 ```
 
-If you see "Disconnected", check:
+**For Gemini Code Assist (VS Code):**
+The MCP server should appear in the extension's MCP server list. Check the extension's status or settings panel to verify connectivity.
+
+If you see "Disconnected" or the server doesn't appear, check:
 1. For HTTP transport: Ensure the Docker container is running (`docker ps | grep ticktick-mcp-server`)
-2. For stdio transport: The container will start automatically when Gemini CLI connects
+2. For stdio transport: The container will start automatically when Gemini CLI or Gemini Code Assist (VS Code) connects
 3. Check container logs: `docker logs ticktick-mcp-server`
+4. Verify the configuration file exists and contains the correct settings: `cat ~/.gemini/settings.json` (user scope) or `cat .gemini/settings.json` (project scope)
 
-## Using with Gemini CLI
+## Using with Gemini CLI and Gemini Code Assist
 
-Once configured, the Gemini CLI will automatically discover the tools and resources exposed by your TickTick MCP server. You can then interact with it naturally:
+Once configured, Gemini CLI and Gemini Code Assist (VS Code) will automatically discover the tools and resources exposed by your TickTick MCP server. You can then interact with it naturally:
 
-- "What are my current TickTick tasks?"
-- "List all my TickTick projects"
-- "Create a TickTick task to 'Plan vacation' for next Friday"
-- "Complete the TickTick task with ID [task_id_here]"
+**With Gemini CLI:**
+- "What tasks do I have for the work project?"
+- "List all my projects"
+- "Create a task to 'Plan vacation' for next Friday"
+- "Mark the task about reviewing the pull request as completed"
+
+**With Gemini Code Assist (VS Code):**
+- Use natural language in the chat interface to interact with your tasks
+- The extension will automatically use the configured MCP server when you ask about tasks or projects
+- Example: "What tasks do I have for the work project?" or "Create a task to review the pull request" or "Mark the task about fixing the bug as completed"
 
 For a complete reference of all available tools and resources, see [TOOLS.md](./TOOLS.md).
 
@@ -278,9 +303,9 @@ For a complete reference of all available tools and resources, see [TOOLS.md](./
 
 **Token expiration:**
 - Tokens expire after ~24 hours
-- Re-run `python get_token.py` to get a new token
+- Re-run `python scripts/get_token.py` to get a new token
 - For HTTP transport: Restart container with new token
-- For stdio transport: Re-register with `gemini mcp add` using new token
+- For stdio transport: Re-register with `gemini mcp add` using new token (this will update the configuration for both Gemini CLI and Gemini Code Assist in VS Code)
 
 ## Configuration Scope Best Practices
 
@@ -295,4 +320,17 @@ For a complete reference of all available tools and resources, see [TOOLS.md](./
 For the TickTick server, **user scope is recommended** since you'll likely want to use it from various projects.
 
 ---
+
+## Notes for VS Code Users
+
+- **Configuration Sharing:** The configuration you create using `gemini mcp add` is automatically shared with Gemini Code Assist extension in VS Code. You don't need to configure them separately.
+
+- **Restart Required:** After configuring or updating the MCP server configuration, you may need to restart VS Code for the changes to take effect in Gemini Code Assist.
+
+- **Project vs User Scope:** 
+  - **User scope** (`--scope user`): The MCP server will be available in all VS Code workspaces
+  - **Project scope** (default): The MCP server will only be available when you open the specific directory containing `.gemini/settings.json` in VS Code
+
+**Note:** IntelliJ's Gemini Code Assist plugin does not currently support MCP servers. See the [official documentation](https://developers.google.com/gemini-code-assist/docs/use-agentic-chat-pair-programmer#control-built-in-tool-use) for details.
+
 For more details on Gemini CLI MCP server configuration, refer to the [official documentation](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html).
