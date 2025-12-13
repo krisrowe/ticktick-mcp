@@ -1,10 +1,110 @@
-# Contributing to the TickTick Access MCP Server
+# Contributing to ticktick-access
 
-This document outlines guidelines and best practices for contributors working on the `ticktick-mcp` MCP server. It covers setting up your development environment, testing changes, and adhering to documentation standards.
+This document outlines guidelines and best practices for contributors working on ticktick-access. It covers version management, development setup, testing, and documentation standards.
+
+## Version Management
+
+**Single source of truth:** `ticktick/__init__.py` contains `__version__`
+
+**When to bump versions:**
+
+| Change Type | Bump | Example |
+|-------------|------|---------|
+| Bug fix, minor tweak | Patch | 0.2.0 → 0.2.1 |
+| New feature (backwards compatible) | Minor | 0.2.0 → 0.3.0 |
+| Breaking change | Major | 0.2.0 → 1.0.0 |
+
+**Release workflow:**
+
+1. Make changes, commit normally
+2. When ready to release:
+   ```bash
+   # Update version in ticktick/__init__.py
+   # Commit the version bump
+   git add ticktick/__init__.py
+   git commit -m "chore: bump version to X.Y.Z"
+
+   # Tag the release
+   git tag vX.Y.Z
+
+   # Push with tags
+   git push && git push --tags
+   ```
+
+**Why version bumps matter:**
+
+- `pip install --upgrade` only installs if version number is higher
+- Same version number = pip thinks nothing changed, skips update
+- Editable installs (`pip install -e .`) always use live code regardless of version
+
+**For development:** Use editable install to avoid version concerns:
+```bash
+pipx install -e .   # or: pip install -e .
+```
+
+## Upgrading ticktick-access
+
+To upgrade an existing installation:
+
+```bash
+# Upgrade via pipx
+pipx upgrade ticktick-access
+
+# Or reinstall from latest
+pipx uninstall ticktick-access
+pipx install git+https://github.com/USER/ticktick-access.git
+```
+
+## Architecture Roadmap
+
+### Current Architecture
+
+```
+ticktick-access/
+├── ticktick/
+│   ├── __init__.py      # Package version
+│   ├── config.py        # Config/credential management
+│   ├── auth.py          # OAuth flow
+│   ├── cli.py           # CLI commands (auth only)
+│   └── mcp/
+│       └── server.py    # MCP server (all task operations)
+```
+
+**Current limitation:** The CLI only handles authentication. Task operations (list projects, create tasks, etc.) are only available through the MCP server.
+
+### Future Architecture (SDK Pattern)
+
+Following the gworkspace-access pattern, the architecture should evolve to:
+
+```
+ticktick-access/
+├── ticktick/
+│   ├── __init__.py
+│   ├── sdk/                 # Reusable SDK layer (NEW)
+│   │   ├── __init__.py
+│   │   ├── config.py        # Config management
+│   │   ├── auth.py          # OAuth flow
+│   │   ├── client.py        # TickTick API client
+│   │   ├── projects.py      # Project operations
+│   │   └── tasks.py         # Task operations
+│   ├── cli/                 # CLI (thin client over SDK)
+│   │   ├── __init__.py
+│   │   └── commands.py      # All CLI commands
+│   └── mcp/                 # MCP server (thin client over SDK)
+│       └── server.py
+```
+
+**Benefits of SDK pattern:**
+- CLI can do everything MCP can do
+- Third-party apps can use the SDK directly
+- Consistent behavior across all interfaces
+- Easier testing (test SDK once, all clients benefit)
+
+**Enhancement tracking:** This is tracked as a design goal for future releases.
 
 ## 1. Development Setup
 
-For local development without Docker, refer to the "Alternative: Local Development Setup" section in `README.md`.
+For local development, install in editable mode:
 
 ### Setting Up Development Dependencies
 
