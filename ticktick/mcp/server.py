@@ -133,7 +133,9 @@ async def _prepare_task_update_payload(
     access_token: str,
 ) -> dict:
     """Prepare the payload for updating a task by fetching existing details and merging new data."""
-    existing_task_response = await make_ticktick_request("GET", f"task/{task_id}", access_token)
+    existing_task_response = await make_ticktick_request(
+        "GET", f"project/{project_id}/task/{task_id}", access_token
+    )
     if not existing_task_response:
         raise ValueError(f"Could not retrieve existing task {task_id}.")
 
