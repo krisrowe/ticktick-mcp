@@ -23,9 +23,68 @@ Both clients read from the same `~/.gemini/settings.json` (user scope) or `.gemi
 
 ## Configuration Options
 
-You have two options for configuring the TickTick MCP server with Gemini CLI and Gemini Code Assist (VS Code):
+This document provides two main ways to configure the TickTick MCP server for use with Gemini CLI and Gemini Code Assist (VS Code). The recommended approach uses a native Python installation via `pipx`, while a more advanced option utilizes Docker.
 
-### Option A: HTTP Transport (Manual Container Management)
+### Option 1: Native Installation (Recommended)
+
+This is the simplest and recommended way to get started. After installing `ticktick-access` via `pipx` and authenticating (as described in the Prerequisites and main [README.md](../README.md)), you can register the MCP server with Gemini CLI.
+
+**Key points:**
+-   No Docker required.
+-   Gemini CLI automatically starts and stops the `ticktick-mcp` process when needed.
+-   Uses credentials from `~/.ticktick-access/` automatically.
+
+#### Using `gemini mcp add` Command
+
+```bash
+# To ensure a clean setup, first remove any existing configuration for 'ticktick'
+gemini mcp remove ticktick --scope user
+
+# Then, add the TickTick MCP server
+gemini mcp add ticktick --command ticktick-mcp --args "--stdio" --scope user
+```
+
+**Note:** Use `--scope user` to make the server available from any directory. If omitted, the server will be configured for `project` scope, meaning it only works when running Gemini CLI from the directory where you run the command (or its subdirectories).
+
+#### Manual Configuration
+
+For more control or to share configurations, you can manually edit your Gemini CLI `settings.json` file.
+
+**User scope** (`~/.gemini/settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "ticktick": {
+      "command": "ticktick-mcp",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
+**Project scope** (`.gemini/settings.json` in your project):
+
+```json
+{
+  "mcpServers": {
+    "ticktick": {
+      "command": "ticktick-mcp",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
+---
+
+### Option 2: Advanced Configuration with Docker
+
+For advanced use cases, or to run the MCP server in a containerized environment, you can use Docker. This is more complex to set up but provides greater isolation.
+
+There are two ways to use Docker: with **HTTP transport** (where you manage the container manually) or with **stdio transport** (where Gemini CLI starts the container automatically). The stdio transport is recommended if you choose to use Docker.
+
+#### A: Docker with HTTP Transport (Manual Container Management)
 
 With HTTP transport, you must manually manage the Docker container lifecycle:
 - Run `docker run -d` manually before using Gemini CLI
@@ -35,7 +94,7 @@ With HTTP transport, you must manually manage the Docker container lifecycle:
 
 **The Problem:** This requires manual container management, which can be inconvenient if you forget to start the container or need to manage it across sessions.
 
-#### Using `gemini mcp add` Command
+##### Using `gemini mcp add` Command
 
 ```bash
 # From the ticktick-mcp directory (or your workspace root)
@@ -45,24 +104,9 @@ gemini mcp add ticktick \
   --scope user
 ```
 
-**Note:** Use `--scope user` to make it available from any directory, or omit it for project scope (only works from the directory where you run the command).
-
-#### Manual Configuration
-
-You can also manually edit your Gemini CLI `settings.json` file. Here are example configurations:
+##### Manual Configuration
 
 **User scope** (`~/.gemini/settings.json`):
-```json
-{
-  "mcpServers": {
-    "ticktick": {
-      "httpUrl": "http://localhost:8000/mcp"
-    }
-  }
-}
-```
-
-**Project scope** (`.gemini/settings.json` in your project):
 ```json
 {
   "mcpServers": {
@@ -81,26 +125,14 @@ source .env
 docker run -d --name ticktick-mcp-server -p 8000:8000 -e TICKTICK_ACCESS_TOKEN="$TICKTICK_ACCESS_TOKEN" ticktick-mcp-server:latest
 ```
 
-### Option B: Stdio Transport (Auto-Start Container) - Recommended
+#### B: Docker with Stdio Transport (Auto-Start Container)
 
 **The Solution:** Gemini CLI and Gemini Code Assist (VS Code) can automatically start Docker containers when using **stdio transport** instead of HTTP. This means:
 - ✅ No need to run `docker run -d` manually
 - ✅ Container starts automatically when Gemini CLI connects
 - ✅ Container stops automatically when done (with `--rm` flag)
 
-**How It Works:**
-
-**HTTP Transport (Manual):**
-- Server must be running at `http://localhost:8000/mcp`
-- You manage the container lifecycle manually
-- Container persists until you stop it
-
-**Stdio Transport (Auto-Start):**
-- Gemini CLI or Gemini Code Assist (VS Code) runs the `docker` command when connecting
-- Container starts automatically
-- Container stops automatically when the client disconnects
-
-#### Using `gemini mcp add` Command
+##### Using `gemini mcp add` Command
 
 ```bash
 # Load token from .env
@@ -123,12 +155,8 @@ gemini mcp add ticktick \
 3. Gemini CLI receives the actual token value via `--env`
 4. Gemini CLI stores that actual token value in `settings.json` (not the variable reference)
 
-**Note:** With stdio transport, Gemini CLI and Gemini Code Assist (VS Code) will:
-- Start the container automatically when connecting
-- Stop and remove the container when done (due to `--rm` flag)
-- You don't need to manually manage the container lifecycle
 
-#### Manual Configuration
+##### Manual Configuration
 
 **User scope** (`~/.gemini/settings.json`):
 ```json
@@ -154,37 +182,13 @@ gemini mcp add ticktick \
 }
 ```
 
-**Project scope** (`.gemini/settings.json` in your project):
-```json
-{
-  "mcpServers": {
-    "ticktick": {
-      "command": "docker",
-      "args": [
-        "run",
-        "-i",
-        "--rm",
-        "-e",
-        "TICKTICK_ACCESS_TOKEN",
-        "ticktick-mcp-server:latest",
-        "python",
-        "server-stdio.py"
-      ],
-      "env": {
-        "TICKTICK_ACCESS_TOKEN": "${TICKTICK_ACCESS_TOKEN}"
-      }
-    }
-  }
-}
-```
-
-**Important Security Note:** When you use `gemini mcp add` with `--env "TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN"`, your shell expands `$TICKTICK_ACCESS_TOKEN` to the actual token value before passing it to Gemini CLI. Gemini CLI then stores that actual token value (not the variable reference) in plain text in your `settings.json` file (either `~/.gemini/settings.json` for user scope or `.gemini/settings.json` for project scope). This file should have restricted permissions (600 recommended) and should never be committed to version control.
+**Important Security Note:** When you use `gemini mcp add` with `--env "TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN"`, your shell expands `$TICKTICK_ACCESS_TOKEN` to the actual token value before passing it to Gemini CLI. Gemini CLI then stores that actual token value (not the variable reference) in plain text in your `settings.json` file. This file should have restricted permissions (600 recommended) and should never be committed to version control.
 
 **Note:** The token is passed at registration time. If your token expires, you'll need to re-register with the new token.
 
 ## Switching from HTTP to Stdio Transport
 
-If you're currently using HTTP transport and want to switch to auto-start mode:
+If you're currently using the manual Docker HTTP transport and want to switch to the auto-start Docker stdio mode:
 
 1. **Remove the old HTTP configuration:**
    ```bash
@@ -217,6 +221,7 @@ If you're currently using HTTP transport and want to switch to auto-start mode:
    gemini mcp list
    ```
    The container will start automatically when Gemini CLI connects!
+
 
 ## Configuration File Locations
 
@@ -256,11 +261,11 @@ After configuring, verify the server is connected:
 gemini mcp list
 ```
 
-You should see output like:
+You should see output like this for a stdio connection:
 ```
 Configured MCP servers:
 
-✓ ticktick: http://localhost:8000/mcp (http) - Connected
+✓ ticktick: ticktick-mcp --stdio (stdio) - Connected
 ```
 
 **For Gemini Code Assist (VS Code):**
@@ -295,6 +300,42 @@ For a complete reference of all available tools and resources, see [TOOLS.md](./
 - For HTTP transport: Ensure Docker container is running (`docker start ticktick-mcp-server` if stopped)
 - Check the `httpUrl` in your `settings.json` matches the container port
 - Verify token hasn't expired (re-run `python get_token.py` if needed)
+- For stdio transport: Check the "Debugging the Configuration" section below to ensure your `settings.json` is correct.
+
+### Debugging the Configuration
+
+If you're having issues, the first place to check is your `settings.json` file. This file is updated when you run `gemini mcp add`.
+
+**File Locations:**
+- **User Scope:** `~/.gemini/settings.json`
+- **Project Scope:** `.gemini/settings.json` (in the directory where you ran the `add` command)
+
+You can inspect the file with `cat`:
+```bash
+cat ~/.gemini/settings.json
+```
+
+For the recommended native `stdio` installation, the `mcpServers` section for `ticktick` should look like this:
+
+```json
+{
+  "mcpServers": {
+    "ticktick": {
+      "command": "ticktick-mcp",
+      "args": [
+        "--stdio"
+      ]
+    }
+  }
+}
+```
+
+**Common Mistakes:**
+- The `--stdio` flag is part of the `command` string instead of in the `args` array.
+- There are extra characters or incorrect quoting.
+
+If the file looks incorrect, the easiest way to fix it is to remove and re-add the server as described in the "Using `gemini mcp add` Command" section.
+
 
 **"Connection refused" errors:**
 - Ensure Docker is running: `docker ps`
