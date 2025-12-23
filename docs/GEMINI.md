@@ -23,7 +23,7 @@ To maintain clarity and separation of concerns in documentation, please adhere t
 Before committing any changes, especially to code, examples, or documentation, perform a thorough check for sensitive or personal information. This includes, but is not limited to:
 
 *   **Developer-specific Paths:** Avoid including paths that reveal a developer's home directory or specific user names (e.g., `/home/developer/project` should be generalized to `/path/to/project`).
-*   **Names and Emails:** Do not include anyone's real name, email address, or any other personally identifiable information. Use generic placeholders (e.g., "John Doe", "example@email.com") instead.
+*   **Names and Emails:** Do not include anyone's real name, email address, or any other personally identifiable information. Use generic placeholders (e.g., "John Doe", "user [at] example [dot] com") instead.
 *   **Real IDs/Secrets:** Ensure all task IDs, project IDs, client IDs/secrets, or any other API-related identifiers are generic placeholders in examples and documentation.
 *   **Hardcoded Credentials:** Double-check that no API keys, tokens, or other credentials are hardcoded anywhere in the repository.
 
