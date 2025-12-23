@@ -104,11 +104,26 @@ def client_show():
 
 
 @cli.command()
-def status():
+@click.option("--format", type=click.Choice(["table", "json"]), default="table")
+def status(format):
     """Show authentication status."""
     config_dir = get_config_dir()
     client_id, client_secret = get_client_credentials()
     token = load_token()
+
+    if format == "json":
+        status_data = {
+            "config_directory": str(config_dir),
+            "client_credentials": {
+                "configured": bool(client_id and client_secret),
+            },
+            "access_token": {
+                "found": bool(token),
+                "status": "Ready" if token else "Not found"
+            }
+        }
+        click.echo(json.dumps(status_data, indent=2))
+        return
 
     click.echo(f"Config directory: {config_dir}")
     click.echo()

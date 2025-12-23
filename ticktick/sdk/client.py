@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 
-from ..config import load_token
+from ..config import get_token, load_token
 
 logger = logging.getLogger(__name__)
 
@@ -22,30 +22,10 @@ USER_AGENT = "ticktick-access/1.0"
 def get_access_token() -> str:
     """Get access token from environment or config file.
 
-    Priority:
-    1. TICKTICK_ACCESS_TOKEN environment variable
-    2. ~/.ticktick-access/token file
-
     Returns:
         The access token.
-
-    Raises:
-        ValueError: If no token is found.
     """
-    # Check environment variable first (for Docker/container usage)
-    token = os.getenv("TICKTICK_ACCESS_TOKEN")
-    if token:
-        return token
-
-    # Fall back to config file
-    token = load_token()
-    if token:
-        return token
-
-    raise ValueError(
-        "No access token found. Run 'ticktick auth' to authenticate, "
-        "or set TICKTICK_ACCESS_TOKEN environment variable."
-    )
+    return get_token()
 
 
 async def request(
