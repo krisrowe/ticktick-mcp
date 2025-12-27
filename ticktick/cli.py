@@ -245,6 +245,36 @@ def tasks_create(title, project, content, priority):
         sys.exit(1)
 
 
+@tasks.command("update")
+@click.argument("task_id")
+@click.option("--project", default="Work", help="Project ID or name (default: 'Work').")
+@click.option("--title", help="New title.")
+@click.option("--content", help="New description.")
+@click.option("--priority", type=int, help="New priority (0-5).")
+@click.option("--status", type=int, help="New status (0=open, 2=completed).")
+def tasks_update(task_id, project, title, content, priority, status):
+    """Update an existing task."""
+
+    async def _update():
+        pid = await _resolve_project_id(project)
+        return await sdk_tasks.update_task(
+            pid,
+            task_id,
+            title=title,
+            content=content,
+            priority=priority,
+            status=status
+        )
+
+    result = run_async(_update())
+
+    if result.get("success"):
+        click.echo(f"Success: {result.get('message')}")
+    else:
+        click.echo(f"Error: {result.get('error')}", err=True)
+        sys.exit(1)
+
+
 def main():
     """Entry point for the CLI."""
     cli()
