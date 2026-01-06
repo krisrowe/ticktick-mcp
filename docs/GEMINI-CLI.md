@@ -41,7 +41,7 @@ This is the simplest and recommended way to get started. After installing `tickt
 gemini mcp remove ticktick --scope user
 
 # Then, add the TickTick MCP server
-gemini mcp add ticktick --command ticktick-mcp --args "--stdio" --scope user
+gemini mcp add ticktick ticktick-mcp --stdio --scope user
 ```
 
 **Note:** Use `--scope user` to make the server available from any directory. If omitted, the server will be configured for `project` scope, meaning it only works when running Gemini CLI from the directory where you run the command (or its subdirectories).
@@ -140,11 +140,7 @@ source .env
 
 # Register with stdio transport (auto-starts container)
 gemini mcp add ticktick \
-  --command "docker" \
-  --args "run" "-i" "--rm" \
-  "-e" "TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN" \
-  "ticktick-mcp-server:latest" \
-  "python" "server-stdio.py" \
+  "docker run -i --rm -e TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN ticktick-mcp-server:latest python server-stdio.py" \
   --env "TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN" \
   --scope user
 ```
@@ -205,11 +201,7 @@ If you're currently using the manual Docker HTTP transport and want to switch to
    ```bash
    source .env
    gemini mcp add ticktick \
-     --command "docker" \
-     --args "run" "-i" "--rm" \
-     "-e" "TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN" \
-     "ticktick-mcp-server:latest" \
-     "python" "server-stdio.py" \
+     "docker run -i --rm -e TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN ticktick-mcp-server:latest python server-stdio.py" \
      --env "TICKTICK_ACCESS_TOKEN=$TICKTICK_ACCESS_TOKEN" \
      --scope user
    ```
