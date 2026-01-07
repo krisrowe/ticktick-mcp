@@ -16,7 +16,7 @@ ticktick auth          # OAuth flow to get access token
 claude mcp add --scope user ticktick -- ticktick-mcp --stdio
 
 # Configure MCP for Gemini CLI
-gemini mcp add ticktick --command ticktick-mcp --args "--stdio" --scope user
+gemini mcp add ticktick ticktick-mcp --stdio --scope user
 ```
 
 ## Features
