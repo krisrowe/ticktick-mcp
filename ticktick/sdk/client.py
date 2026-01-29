@@ -59,6 +59,11 @@ async def request(
                 method, url, headers=headers, json=data, params=params, timeout=30.0
             )
             response.raise_for_status()
+            
+            # Handle successful empty responses (e.g. 204 No Content)
+            if response.status_code == 204 or not response.content:
+                return {}
+                
             return response.json()
         except httpx.HTTPStatusError as e:
             logger.error(f"HTTP error for {url}: {e.response.status_code} - {e.response.text}")

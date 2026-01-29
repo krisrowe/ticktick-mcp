@@ -39,3 +39,6 @@ Thumbs.db
 # Old files (if any)
 dev-requirements.txt
 requirements.txt
+
+# Session temporary files
+temp/

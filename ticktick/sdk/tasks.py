@@ -3,9 +3,12 @@
 This module provides functions for managing TickTick tasks.
 """
 
+import logging
 from typing import Any
 
 from . import client
+
+logger = logging.getLogger(__name__)
 
 # Valid task fields that can be included in update payloads
 TASK_FIELDS = {
@@ -222,3 +225,76 @@ async def complete_task(project_id: str, task_id: str) -> dict[str, Any]:
         result["message"] = f"Task '{result['task'].get('title', task_id)}' marked as completed"
 
     return result
+
+
+async def delete_task(
+    project_id: str, 
+    task_id: str, 
+    archive_path: str | None = None, 
+    otp: str | None = None,
+    elevated: bool = False
+) -> dict[str, Any]:
+    """Delete a task permanently.
+
+    Args:
+        project_id: The project ID containing the task.
+        task_id: The task ID to delete.
+        archive_path: Optional directory to save the local snapshot. Falls back to 
+                     'deletion.archive_path' setting, then XDG cache.
+        otp: One-time password for elevated access.
+        elevated: If True, enforces OTP validation (used by MCP tools).
+
+    Returns:
+        Dict with success status.
+    """
+    from .. import config
+    from . import archiver, security
+
+    # 1. Check Access Mode
+    access_mode = config.get_setting("deletion.access")
+    
+    if access_mode == "disabled":
+        return {"success": False, "error": "Deletion is disabled in settings (deletion.access)."}
+    
+    # 2. Security Check (OTP)
+    if elevated:
+        if not otp:
+            return {"success": False, "error": "OTP required for deletion (elevated access)."}
+        if not security.validate_otp(otp):
+            return {"success": False, "error": "Security Check Failed: Invalid or expired OTP."}
+
+    # 3. Handle Archival Logic
+    # If explicit path provided, we ALWAYS archive there.
+    # If NO path provided, we check if auto-archive is disabled.
+    should_archive = False
+    resolved_path = None
+
+    if archive_path:
+        should_archive = True
+        resolved_path = archive_path
+    else:
+        # Check settings
+        disable_auto = config.get_setting("deletion.disable_auto_archive")
+        if not disable_auto:
+            should_archive = True
+            resolved_path = config.get_setting("deletion.archive") # Fallback to XDG handled in archiver if None
+
+    if should_archive:
+        # Fetch task details for archival
+        task_data = await get_task(project_id, task_id)
+        if task_data:
+            archiver.archive_deleted_task(project_id, task_id, task_data, resolved_path)
+        else:
+            logger.warning(f"Task {task_id} not found for archival, proceeding with delete attempt.")
+    else:
+        logger.info(f"Archival skipped for task {task_id} (No path provided and auto-archive disabled).")
+
+    # 4. Perform deletion
+    # TickTick API: DELETE /open/v1/project/{projectId}/task/{taskId}
+    result = await client.delete(f"project/{project_id}/task/{task_id}")
+    
+    # TickTick returns {} on success, None on error via our client wrapper
+    if result is not None:
+        return {"success": True, "message": f"Task {task_id} deleted successfully."}
+        
+    return {"success": False, "error": f"Failed to delete task {task_id}"}

@@ -183,6 +183,43 @@ async def complete_task(
         return {"success": False, "error": str(e), "task": None}
 
 
+@mcp.tool(
+    name="delete_task",
+    description="Permanently delete a task. Security level controlled by settings.",
+)
+async def delete_task(
+    task_id: str = Field(description="The ID of the task to delete."),
+    project_id: str = Field(description="The ID of the project containing the task."),
+    otp: str = Field(description="One-time password generated via 'ticktick auth generate-otp' CLI. Required if deletion.access is 'elevated'."),
+    archive_path: str | None = Field(default=None, description="Optional directory to save a local snapshot of the deleted task. Defaults to configured 'deletion.archive' setting or XDG cache."),
+) -> dict[str, Any]:
+    """
+    Permanently delete a task from TickTick.
+    
+    WARNING: This action is irreversible. 
+    Depending on the 'deletion.access' setting, this may require an OTP from the CLI.
+
+    The task content will be archived locally before deletion. 
+    Location logic:
+    1. 'archive_path' argument (if provided).
+    2. 'deletion.archive' setting (if configured).
+    3. System XDG Cache (default).
+    """
+    try:
+        # The SDK handles OTP validation and access mode checks
+        return await sdk_tasks.delete_task(
+            project_id=project_id, 
+            task_id=task_id, 
+            archive_path=archive_path,
+            otp=otp,
+            elevated=True # MCP acts as elevated agent
+        )
+    except Exception as e:
+        logger.error(f"Error in delete_task tool: {e}")
+        return {"success": False, "error": str(e)}
+
+
+
 # ASGI application for HTTP mode (Docker)
 mcp_app = mcp.streamable_http_app()
 

@@ -7,11 +7,94 @@ Stores configuration in ~/.ticktick-access/:
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Any
+import importlib.resources
 
 import yaml
 
-# Configuration paths
+# ... existing code ...
+
+def load_manifest() -> dict:
+    """Load the settings manifest from the package."""
+    try:
+        # Assuming the manifest is at ticktick/sdk/resources/settings-manifest.yaml
+        # We need to access it via the package structure
+        ref = importlib.resources.files("ticktick.sdk.resources").joinpath("settings-manifest.yaml")
+        with ref.open("r") as f:
+            return yaml.safe_load(f).get("settings", {})
+    except Exception as e:
+        # Fallback if resource not found (e.g. during development/editable install quirks)
+        # Or log error. For now return empty dict.
+        return {}
+
+def get_setting(key: str) -> Any:
+    """Get a setting value, falling back to default from manifest."""
+    config = load_config()
+    
+    # Check user config first (settings keys are flat in config.yaml under 'settings' dict?)
+    # Or flat at root? Let's namespace them under 'settings' to avoid collision with client_id
+    user_val = config.get("settings", {}).get(key)
+    if user_val is not None:
+        return user_val
+        
+    # Check manifest default
+    manifest = load_manifest()
+    setting_def = manifest.get(key)
+    if setting_def:
+        return setting_def.get("default")
+        
+    return None
+
+def set_setting(key: str, value: Any) -> None:
+    """Set a setting value, validating against manifest."""
+    manifest = load_manifest()
+    setting_def = manifest.get(key)
+    
+    if not setting_def:
+        raise ValueError(f"Unknown setting: {key}")
+        
+    # Type Conversion / Validation
+    stype = setting_def.get("type")
+    
+    # Handle booleans from CLI strings
+    if stype == "boolean" and isinstance(value, str):
+        if value.lower() in ("true", "yes", "1", "on"):
+            value = True
+        elif value.lower() in ("false", "no", "0", "off"):
+            value = False
+        else:
+            raise ValueError(f"Invalid boolean value '{value}'. Use true/false.")
+
+    if stype == "choice":
+        options = setting_def.get("options", [])
+        if value not in options:
+            raise ValueError(f"Invalid value '{value}'. Allowed: {options}")
+            
+    # Save
+    config = load_config()
+    if "settings" not in config:
+        config["settings"] = {}
+        
+    config["settings"][key] = value
+    save_config(config)
+
+def list_settings() -> dict:
+    """Return all settings with their current values and metadata."""
+    manifest = load_manifest()
+    config = load_config().get("settings", {})
+    
+    results = {}
+    for key, meta in manifest.items():
+        results[key] = {
+            "value": config.get(key, meta.get("default")),
+            "default": meta.get("default"),
+            "description": meta.get("description"),
+            "help": meta.get("help"),
+            "type": meta.get("type"),
+            "options": meta.get("options")
+        }
+    return results
+
 CONFIG_DIR = Path.home() / ".ticktick-access"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 TOKEN_FILE = CONFIG_DIR / "token"

@@ -34,8 +34,14 @@ def cli():
     pass
 
 
-@cli.command()
+@cli.group()
 def auth():
+    """Manage authentication and security."""
+    pass
+
+
+@auth.command("login")
+def auth_login():
     """Authenticate with TickTick (OAuth flow).
 
     Opens your browser to authorize access to your TickTick account.
@@ -54,6 +60,114 @@ def auth():
     except Exception as e:
         click.echo(f"\nAuthentication failed: {e}", err=True)
         raise SystemExit(1)
+
+
+@auth.command("generate-otp")
+def auth_generate_otp():
+    """Generate a temporary OTP for MCP tools requiring elevated access.
+
+    The code is valid for 60 seconds and for one use only.
+    """
+    from .sdk.security import generate_otp
+    otp = generate_otp()
+    click.echo(f"OTP for mcp tool requiring elevated access: {otp}")
+    click.echo("Valid for 60 seconds.")
+
+
+@cli.group()
+def settings():
+    """Manage configuration settings."""
+    pass
+
+
+@settings.command("list")
+def settings_list():
+    """List all settings and their current values."""
+    from .config import list_settings
+    all_settings = list_settings()
+    
+    if not all_settings:
+        click.echo("No settings defined in manifest.")
+        return
+
+    click.echo(f"{'SETTING':<30} {'VALUE':<15} {'DEFAULT':<15} {'DESCRIPTION'}")
+    click.echo("-" * 100)
+    for key, info in all_settings.items():
+        val = str(info['value'])
+        default = str(info['default'])
+        desc = info['description']
+        click.echo(f"{key:<30} {val:<15} {default:<15} {desc}")
+
+
+@settings.group("set")
+def settings_set():
+    """Set a configuration value."""
+    pass
+
+
+@settings.group("clear")
+def settings_clear():
+    """Reset a configuration value to default."""
+    pass
+
+
+@settings.group("show")
+def settings_show():
+    """Show details of a configuration setting."""
+    pass
+
+
+# Dynamic Command Generation
+def _register_settings_commands():
+    from .config import list_settings, set_setting
+    
+    try:
+        manifest = list_settings()
+    except Exception:
+        # If manifest fails to load (e.g. during install), skip
+        return
+
+    for key, meta in manifest.items():
+        cmd_name = key
+        help_text = meta.get("help") or meta.get("description")
+        
+        # --- SET Command ---
+        @settings_set.command(name=cmd_name, help=help_text)
+        @click.argument("value")
+        def _set_cmd(value, k=key): # Closure on k
+            try:
+                set_setting(k, value)
+                click.echo(f"Updated {k} to '{value}'")
+            except Exception as e:
+                click.echo(f"Error: {e}", err=True)
+                sys.exit(1)
+        
+        # --- CLEAR Command ---
+        @settings_clear.command(name=cmd_name, help=f"Reset {key} to default.")
+        def _clear_cmd(k=key):
+            try:
+                set_setting(k, None)
+                click.echo(f"Reset {k} to default.")
+            except Exception as e:
+                click.echo(f"Error: {e}", err=True)
+
+        # --- SHOW Command ---
+        @settings_show.command(name=cmd_name, help=f"Show details for {key}.")
+        def _show_cmd(k=key):
+            from .config import list_settings
+            s = list_settings().get(k)
+            if s:
+                click.echo(f"Setting:     {k}")
+                click.echo(f"Description: {s['description']}")
+                click.echo(f"Value:       {s['value']}")
+                click.echo(f"Default:     {s['default']}")
+                if s.get('options'):
+                    click.echo(f"Options:     {', '.join(s['options'])}")
+                if s.get('help'):
+                    click.echo(f"\n{s['help']}")
+
+# Register them immediately at module level
+_register_settings_commands()
 
 
 @cli.group()
@@ -275,6 +389,26 @@ def tasks_update(task_id, project, title, content, priority, due, status):
         )
 
     result = run_async(_update())
+
+    if result.get("success"):
+        click.echo(f"Success: {result.get('message')}")
+    else:
+        click.echo(f"Error: {result.get('error')}", err=True)
+        sys.exit(1)
+
+
+@tasks.command("delete")
+@click.argument("task_id")
+@click.option("--project", default="Work", help="Project ID or name (default: 'Work').")
+@click.option("--archive-path", default=None, help="Optional directory to save a snapshot of the task. Defaults to configured setting or XDG cache.")
+def tasks_delete(task_id, project, archive_path):
+    """Delete a task permanently."""
+
+    async def _delete():
+        pid = await _resolve_project_id(project)
+        return await sdk_tasks.delete_task(pid, task_id, archive_path=archive_path)
+
+    result = run_async(_delete())
 
     if result.get("success"):
         click.echo(f"Success: {result.get('message')}")

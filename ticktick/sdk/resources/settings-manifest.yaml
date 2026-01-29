@@ -1,0 +1,19 @@
+settings:
+  deletion.access:
+    description: "Control security level for task deletion via MCP."
+    type: "choice"
+    options: ["disabled", "enabled", "elevated"]
+    default: "elevated"
+    help: "Controls whether deletion is permitted and if it requires an OTP. disabled: Tool hidden/blocked. enabled: Standard usage (no OTP). elevated: Requires OTP (Default)."
+
+  deletion.archive:
+    description: "Optional custom path for archives. If unset (None), defaults to system XDG Cache."
+    type: "path"
+    default: null
+    help: "Default location for task snapshots. Used if an archive path is not provided during the individual delete transaction. If no default is configured here, a location in the system XDG Cache is assumed."
+
+  deletion.disable_auto_archive:
+    description: "Disable automatic local archival when no explicit path is provided."
+    type: "boolean"
+    default: false
+    help: "If true, tasks are deleted without a snapshot unless an archive path is explicitly provided via the command/tool arguments."
