@@ -1,30 +1,40 @@
 """TickTick project operations.
 
-This module provides functions for managing TickTick projects (lists).
+This module provides the ProjectService class for managing TickTick projects (lists).
 """
 
 from typing import Any
 
-from . import client
+from .client import TickTickClient
 
 
-async def list_projects() -> list[dict[str, Any]]:
-    """Fetch all projects from TickTick.
+class ProjectService:
+    """Service for TickTick project operations."""
 
-    Returns:
-        List of project dictionaries, or empty list if request failed.
-    """
-    result = await client.get("project")
-    return result if result else []
+    def __init__(self, client: TickTickClient | None = None, *, token: str | None = None):
+        if client:
+            self.client = client
+        elif token:
+            self.client = TickTickClient(token)
+        else:
+            raise ValueError("Either client or token is required.")
 
+    async def list(self) -> list[dict[str, Any]]:
+        """Fetch all projects from TickTick.
 
-async def get_project_data(project_id: str) -> dict[str, Any] | None:
-    """Get full project data including tasks.
+        Returns:
+            List of project dictionaries, or empty list if request failed.
+        """
+        result = await self.client.get("project")
+        return result if result else []
 
-    Args:
-        project_id: The project ID.
+    async def get_data(self, project_id: str) -> dict[str, Any] | None:
+        """Get full project data including tasks.
 
-    Returns:
-        Project data dictionary with tasks, or None if request failed.
-    """
-    return await client.get(f"project/{project_id}/data")
+        Args:
+            project_id: The project ID.
+
+        Returns:
+            Project data dictionary with tasks, or None if request failed.
+        """
+        return await self.client.get(f"project/{project_id}/data")

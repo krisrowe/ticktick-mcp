@@ -7,21 +7,55 @@ operations as MCP tools. All business logic lives in the SDK layer.
 import json
 import logging
 import os
+from contextvars import ContextVar
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 from pydantic import Field
+from starlette.types import ASGIApp, Receive, Scope, Send
 
-from ..sdk import projects as sdk_projects
-from ..sdk import tasks as sdk_tasks
+from ..config import get_single_user_access_token
+from ..sdk.client import TickTickClient
+from ..sdk.projects import ProjectService
+from ..sdk.tasks import TaskService
 
 # Initialize logging
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(level=log_level, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
+# Contextvar holds the per-request token for HTTP mode
+_request_token: ContextVar[str | None] = ContextVar("_request_token", default=None)
+
 # Initialize FastMCP server
 mcp = FastMCP("ticktick")
+
+
+def _resolve_token() -> str:
+    """Resolve the token for the current request.
+
+    HTTP mode: uses token from the request's Authorization header.
+    stdio mode: falls back to local single-user token.
+    """
+    token = _request_token.get()
+    if token:
+        return token
+    return get_single_user_access_token()
+
+
+class _TokenExtractMiddleware:
+    """ASGI middleware that extracts Bearer token into a contextvar."""
+
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        if scope["type"] == "http":
+            headers = dict(scope.get("headers", []))
+            auth = headers.get(b"authorization", b"").decode()
+            if auth.lower().startswith("bearer "):
+                _request_token.set(auth[7:])
+        await self.app(scope, receive, send)
 
 
 # --- Resource Definitions ---
@@ -31,7 +65,8 @@ mcp = FastMCP("ticktick")
 async def get_tasks_by_project_resource(project_id: str) -> str:
     """Get all tasks from a specific TickTick project."""
     try:
-        result = await sdk_tasks.list_tasks(project_id)
+        tasks = TaskService(token=_resolve_token())
+        result = await tasks.list(project_id)
         return json.dumps(result.get("tasks", []), indent=2)
     except ValueError as e:
         logger.error(f"Error in get_tasks_by_project_resource: {e}")
@@ -42,8 +77,9 @@ async def get_tasks_by_project_resource(project_id: str) -> str:
 async def get_all_projects_resource() -> str:
     """Get all TickTick projects available to the authenticated user."""
     try:
-        projects = await sdk_projects.list_projects()
-        return json.dumps(projects, indent=2)
+        projects = ProjectService(token=_resolve_token())
+        result = await projects.list()
+        return json.dumps(result, indent=2)
     except ValueError as e:
         logger.error(f"Error in get_all_projects_resource: {e}")
         return f"Error: {e}"
@@ -59,8 +95,9 @@ async def get_all_projects_resource() -> str:
 async def list_projects() -> dict[str, Any]:
     """Retrieve all TickTick projects for the authenticated user."""
     try:
-        projects = await sdk_projects.list_projects()
-        return {"projects": projects, "count": len(projects)}
+        projects = ProjectService(token=_resolve_token())
+        result = await projects.list()
+        return {"projects": result, "count": len(result)}
     except ValueError as e:
         logger.error(f"Error listing projects: {e}")
         return {"error": str(e), "projects": [], "count": 0}
@@ -75,7 +112,8 @@ async def list_tasks(
 ) -> dict[str, Any]:
     """Retrieve all tasks from a specific TickTick project."""
     try:
-        return await sdk_tasks.list_tasks(project_id)
+        tasks = TaskService(token=_resolve_token())
+        return await tasks.list(project_id)
     except ValueError as e:
         logger.error(f"Error listing tasks: {e}")
         return {"error": str(e), "project_id": project_id, "tasks": [], "count": 0}
@@ -113,7 +151,8 @@ async def create_task(
 ) -> dict[str, Any]:
     """Create a new task in a TickTick project."""
     try:
-        return await sdk_tasks.create_task(
+        tasks = TaskService(token=_resolve_token())
+        return await tasks.create(
             project_id=project_id,
             title=title,
             content=content,
@@ -151,7 +190,8 @@ async def update_task(
 ) -> dict[str, Any]:
     """Update an existing task in a TickTick project."""
     try:
-        return await sdk_tasks.update_task(
+        tasks = TaskService(token=_resolve_token())
+        return await tasks.update(
             project_id=project_id,
             task_id=task_id,
             title=title,
@@ -177,7 +217,8 @@ async def complete_task(
 ) -> dict[str, Any]:
     """Mark a task as completed in TickTick."""
     try:
-        return await sdk_tasks.complete_task(project_id=project_id, task_id=task_id)
+        tasks = TaskService(token=_resolve_token())
+        return await tasks.complete(project_id=project_id, task_id=task_id)
     except ValueError as e:
         logger.error(f"Error completing task: {e}")
         return {"success": False, "error": str(e), "task": None}
@@ -195,33 +236,27 @@ async def delete_task(
 ) -> dict[str, Any]:
     """
     Permanently delete a task from TickTick.
-    
-    WARNING: This action is irreversible. 
-    Depending on the 'deletion.access' setting, this may require an OTP from the CLI.
 
-    The task content will be archived locally before deletion. 
-    Location logic:
-    1. 'archive_path' argument (if provided).
-    2. 'deletion.archive' setting (if configured).
-    3. System XDG Cache (default).
+    WARNING: This action is irreversible.
+    Depending on the 'deletion.access' setting, this may require an OTP from the CLI.
     """
     try:
-        # The SDK handles OTP validation and access mode checks
-        return await sdk_tasks.delete_task(
-            project_id=project_id, 
-            task_id=task_id, 
+        tasks = TaskService(token=_resolve_token())
+        return await tasks.delete(
+            project_id=project_id,
+            task_id=task_id,
             archive_path=archive_path,
             otp=otp,
-            elevated=True # MCP acts as elevated agent
+            elevated=True,
         )
     except Exception as e:
         logger.error(f"Error in delete_task tool: {e}")
         return {"success": False, "error": str(e)}
 
 
-
-# ASGI application for HTTP mode (Docker)
-mcp_app = mcp.streamable_http_app()
+# ASGI application for HTTP mode (Docker/Cloud Run)
+_inner_app = mcp.streamable_http_app()
+mcp_app = _TokenExtractMiddleware(_inner_app)
 
 
 def run_server():

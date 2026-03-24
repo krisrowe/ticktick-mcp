@@ -165,8 +165,11 @@ def save_token(token: str) -> None:
     TOKEN_FILE.chmod(0o600)
 
 
-def get_token() -> str:
+def get_single_user_access_token() -> str:
     """Get access token from environment or config file.
+
+    For local/single-user use (CLI, stdio MCP). The caller is responsible
+    for passing the resolved token into the SDK client.
 
     Priority:
     1. TICKTICK_ACCESS_TOKEN environment variable
@@ -178,12 +181,10 @@ def get_token() -> str:
     Raises:
         ValueError: If no token is found.
     """
-    # Check environment variable first (for Docker/container usage)
     token = os.getenv("TICKTICK_ACCESS_TOKEN")
     if token:
         return token
 
-    # Fall back to config file
     token = load_token()
     if token:
         return token

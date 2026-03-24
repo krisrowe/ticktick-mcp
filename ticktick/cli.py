@@ -8,11 +8,12 @@ from .auth import run_oauth_flow
 from .config import (
     get_client_credentials,
     get_config_dir,
+    get_single_user_access_token,
     load_token,
     save_client_credentials,
 )
-from .sdk import projects as sdk_projects
-from .sdk import tasks as sdk_tasks
+from .sdk.projects import ProjectService
+from .sdk.tasks import TaskService
 
 
 def run_async(coro):
@@ -22,6 +23,16 @@ def run_async(coro):
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
+
+
+def _make_services():
+    """Create SDK services using local single-user credentials."""
+    try:
+        token = get_single_user_access_token()
+    except ValueError as e:
+        click.echo(f"Error: {e}", err=True)
+        raise SystemExit(1)
+    return ProjectService(token=token), TaskService(token=token)
 
 
 @click.group()
@@ -85,7 +96,7 @@ def settings_list():
     """List all settings and their current values."""
     from .config import list_settings
     all_settings = list_settings()
-    
+
     if not all_settings:
         click.echo("No settings defined in manifest.")
         return
@@ -120,7 +131,7 @@ def settings_show():
 # Dynamic Command Generation
 def _register_settings_commands():
     from .config import list_settings, set_setting
-    
+
     try:
         manifest = list_settings()
     except Exception:
@@ -130,7 +141,7 @@ def _register_settings_commands():
     for key, meta in manifest.items():
         cmd_name = key
         help_text = meta.get("help") or meta.get("description")
-        
+
         # --- SET Command ---
         @settings_set.command(name=cmd_name, help=help_text)
         @click.argument("value")
@@ -141,7 +152,7 @@ def _register_settings_commands():
             except Exception as e:
                 click.echo(f"Error: {e}", err=True)
                 sys.exit(1)
-        
+
         # --- CLEAR Command ---
         @settings_clear.command(name=cmd_name, help=f"Reset {key} to default.")
         def _clear_cmd(k=key):
@@ -271,7 +282,8 @@ def projects():
 @click.option("--format", type=click.Choice(["table", "json"]), default="table")
 def projects_list(format):
     """List all TickTick projects."""
-    project_list = run_async(sdk_projects.list_projects())
+    project_svc, _ = _make_services()
+    project_list = run_async(project_svc.list())
 
     if format == "json":
         click.echo(json.dumps(project_list, indent=2))
@@ -292,12 +304,12 @@ def tasks():
     pass
 
 
-async def _resolve_project_id(project_id_or_name: str) -> str:
+async def _resolve_project_id(project_svc: ProjectService, project_id_or_name: str) -> str:
     """Helper to resolve project name to ID if needed."""
     if len(project_id_or_name) == 24:  # Likely an ID
         return project_id_or_name
 
-    project_list = await sdk_projects.list_projects()
+    project_list = await project_svc.list()
     for p in project_list:
         if p.get("name") == project_id_or_name:
             return p.get("id")
@@ -315,16 +327,17 @@ def tasks_list(project, format):
     """
 
     async def _list():
-        pid = await _resolve_project_id(project)
-        return await sdk_tasks.list_tasks(pid)
+        project_svc, task_svc = _make_services()
+        pid = await _resolve_project_id(project_svc, project)
+        return await task_svc.list(pid)
 
     result = run_async(_list())
 
     if format == "json":
         click.echo(json.dumps(result, indent=2))
     else:
-        tasks = result.get("tasks", [])
-        if not tasks:
+        task_list = result.get("tasks", [])
+        if not task_list:
             click.echo(f"No tasks found in project '{project}'.")
             return
 
@@ -332,9 +345,9 @@ def tasks_list(project, format):
         click.echo()
         click.echo(f"{'ID':<24} {'STATUS':<10} {'TITLE'}")
         click.echo("-" * 70)
-        for t in tasks:
-            status = "OPEN" if t.get("status") == 0 else "DONE" if t.get("status") == 2 else str(t.get("status"))
-            click.echo(f"{t.get('id', ''):<24} {status:<10} {t.get('title', '')}")
+        for t in task_list:
+            s = "OPEN" if t.get("status") == 0 else "DONE" if t.get("status") == 2 else str(t.get("status"))
+            click.echo(f"{t.get('id', ''):<24} {s:<10} {t.get('title', '')}")
 
 
 @tasks.command("create")
@@ -349,8 +362,9 @@ def tasks_create(title, project, content, priority, due, status, completed_time)
     """Create a new task."""
 
     async def _create():
-        pid = await _resolve_project_id(project)
-        return await sdk_tasks.create_task(
+        project_svc, task_svc = _make_services()
+        pid = await _resolve_project_id(project_svc, project)
+        return await task_svc.create(
             pid, title, content=content, priority=priority, due_date=due,
             status=status, completed_time=completed_time
         )
@@ -377,8 +391,9 @@ def tasks_update(task_id, project, title, content, priority, due, status):
     """Update an existing task."""
 
     async def _update():
-        pid = await _resolve_project_id(project)
-        return await sdk_tasks.update_task(
+        project_svc, task_svc = _make_services()
+        pid = await _resolve_project_id(project_svc, project)
+        return await task_svc.update(
             project_id=pid,
             task_id=task_id,
             title=title,
@@ -405,8 +420,9 @@ def tasks_delete(task_id, project, archive_path):
     """Delete a task permanently."""
 
     async def _delete():
-        pid = await _resolve_project_id(project)
-        return await sdk_tasks.delete_task(pid, task_id, archive_path=archive_path)
+        project_svc, task_svc = _make_services()
+        pid = await _resolve_project_id(project_svc, project)
+        return await task_svc.delete(pid, task_id, archive_path=archive_path)
 
     result = run_async(_delete())
 

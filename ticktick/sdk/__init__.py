@@ -6,17 +6,22 @@ This SDK provides programmatic access to the TickTick API. It can be used by:
 - Third-party applications
 
 Example usage:
-    from ticktick.sdk import projects, tasks
+    from ticktick.sdk.client import TickTickClient
+    from ticktick.sdk.projects import ProjectService
+    from ticktick.sdk.tasks import TaskService
 
-    # List all projects
-    project_list = await projects.list_projects()
+    # With a shared client
+    client = TickTickClient(token="...")
+    projects = ProjectService(client)
+    tasks = TaskService(client)
 
-    # Create a task
-    task = await tasks.create_task(project_id="abc123", title="My Task")
+    # Or directly with a token
+    projects = ProjectService(token="...")
+    tasks = TaskService(token="...")
 """
 
-from . import client
-from . import projects
-from . import tasks
+from .client import TickTickClient
+from .projects import ProjectService
+from .tasks import TaskService
 
-__all__ = ["client", "projects", "tasks"]
+__all__ = ["TickTickClient", "ProjectService", "TaskService"]
