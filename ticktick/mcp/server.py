@@ -29,8 +29,16 @@ logger = logging.getLogger(__name__)
 # Contextvar holds the per-request token for HTTP mode
 _request_token: ContextVar[str | None] = ContextVar("_request_token", default=None)
 
-# Initialize FastMCP server
-mcp = FastMCP("ticktick")
+# On Cloud Run, disable MCP's DNS rebinding protection — the load balancer
+# and gapp's auth middleware handle host validation. Locally, use the
+# default FastMCP constructor which enables localhost-only protection.
+if os.environ.get("K_SERVICE"):
+    from mcp.server.transport_security import TransportSecuritySettings
+    mcp = FastMCP("ticktick", transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
+    ))
+else:
+    mcp = FastMCP("ticktick")
 
 
 def _resolve_token() -> str:
