@@ -4,6 +4,4 @@ service:
   auth: bearer
   runtime: v0.2.0
 prerequisites:
-  secrets:
-    TICKTICK_ACCESS_TOKEN:
-      description: TickTick OAuth access token for API calls
+  secrets: {}
