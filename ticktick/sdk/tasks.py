@@ -3,6 +3,8 @@
 This module provides the TaskService class for managing TickTick tasks.
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 

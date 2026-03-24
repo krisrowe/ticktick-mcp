@@ -6,6 +6,8 @@ construction — it never resolves credentials itself. Token
 resolution is the caller's responsibility (CLI, MCP, etc.).
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 

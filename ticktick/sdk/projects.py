@@ -3,6 +3,8 @@
 This module provides the ProjectService class for managing TickTick projects (lists).
 """
 
+from __future__ import annotations
+
 from typing import Any
 
 from .client import TickTickClient

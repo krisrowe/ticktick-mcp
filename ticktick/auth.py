@@ -1,5 +1,7 @@
 """OAuth 2.0 authentication flow for TickTick API."""
 
+from __future__ import annotations
+
 import http.server
 import socketserver
 import webbrowser

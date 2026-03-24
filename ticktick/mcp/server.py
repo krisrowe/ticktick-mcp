@@ -4,6 +4,8 @@ This server provides a thin wrapper over the SDK, exposing TickTick
 operations as MCP tools. All business logic lives in the SDK layer.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import os
