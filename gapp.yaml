@@ -1,7 +1,23 @@
+# gapp deployment manifest — optional cloud deployment configuration.
+#
+# This deploys ticktick-access to GCP Cloud Run via gapp
+# (https://github.com/echomodel/gapp). The container image is built
+# from this repo's Dockerfile; gapp manages the SIGNING_KEY secret
+# and per-user data volume.
+#
+# This file is NOT required to use ticktick-access. The solution
+# runs as a local CLI, an stdio MCP server, or anywhere a standard
+# Python container can run.
+
 service:
-  entrypoint: ticktick.mcp.server:mcp_app
-  mcp_path: /mcp
-  auth: bearer
-  runtime: v0.4.0
-prerequisites:
-  secrets: {}
+  cmd: ticktick-mcp serve
+public: true
+env:
+  - name: SIGNING_KEY
+    secret:
+      name: signing-key
+      generate: true
+  - name: APP_USERS_PATH
+    value: "{{SOLUTION_DATA_PATH}}/users"
+  - name: LOG_LEVEL
+    value: INFO

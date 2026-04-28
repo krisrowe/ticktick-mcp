@@ -1,18 +1,18 @@
 """TickTick task operations.
 
-This module provides the TaskService class for managing TickTick tasks.
+Module-level async functions taking a :class:`TickTickClient`.
+Use :class:`ticktick.sdk.client.TickTickSDK` from MCP tools — it
+constructs the client from the current user's profile.
 """
 
 from __future__ import annotations
 
-import logging
 from typing import Any
 
-from .client import TickTickClient
+from ticktick.sdk.client import APIError, TickTickClient
 
-logger = logging.getLogger(__name__)
 
-# Valid task fields that can be included in update payloads
+# Fields that round-trip through the TickTick task PUT endpoint.
 TASK_FIELDS = {
     "id",
     "projectId",
@@ -47,250 +47,105 @@ TASK_FIELDS = {
 }
 
 
-class TaskService:
-    """Service for TickTick task operations."""
+async def list_tasks(client: TickTickClient, project_id: str) -> dict[str, Any]:
+    """Return all tasks in a project plus a small status summary."""
+    data = await client.get(f"project/{project_id}/data")
+    tasks = (data or {}).get("tasks", []) if isinstance(data, dict) else []
+    return {
+        "project_id": project_id,
+        "tasks": tasks,
+        "count": len(tasks),
+        "completed": sum(1 for t in tasks if t.get("status") == 2),
+        "incomplete": sum(1 for t in tasks if t.get("status") == 0),
+    }
 
-    def __init__(self, client: TickTickClient | None = None, *, token: str | None = None):
-        if client:
-            self.client = client
-        elif token:
-            self.client = TickTickClient(token)
-        else:
-            raise ValueError("Either client or token is required.")
 
-    async def list(self, project_id: str) -> dict[str, Any]:
-        """Fetch all tasks from a specific project.
+async def get_task(
+    client: TickTickClient, project_id: str, task_id: str,
+) -> dict[str, Any] | None:
+    """Return a single task by ID, or None if not found."""
+    return await client.get(f"project/{project_id}/task/{task_id}")
 
-        Args:
-            project_id: The project ID.
 
-        Returns:
-            Dict with project_id, tasks list, count, and status breakdown.
-        """
-        tasks_data = await self.client.get(f"project/{project_id}/data")
+async def create_task(
+    client: TickTickClient,
+    project_id: str,
+    title: str,
+    content: str = "",
+    priority: int = 0,
+    due_date: str | None = None,
+    reminders: list[str] | None = None,
+    status: int | None = None,
+    completed_time: str | None = None,
+) -> dict[str, Any]:
+    """Create a new task in a project."""
+    payload: dict[str, Any] = {
+        "projectId": project_id,
+        "title": title,
+        "priority": max(0, min(5, priority)),
+    }
+    if content:
+        payload["content"] = content
+    if due_date:
+        payload["dueDate"] = due_date
+    if reminders:
+        payload["reminders"] = reminders
+    if status is not None:
+        payload["status"] = status
+    if completed_time:
+        payload["completedTime"] = completed_time
 
-        if tasks_data and "tasks" in tasks_data:
-            tasks = tasks_data["tasks"]
-            return {
-                "project_id": project_id,
-                "tasks": tasks,
-                "count": len(tasks),
-                "completed": sum(1 for t in tasks if t.get("status") == 2),
-                "incomplete": sum(1 for t in tasks if t.get("status") == 0),
-            }
+    return await client.post("task", payload)
 
-        return {"project_id": project_id, "tasks": [], "count": 0, "completed": 0, "incomplete": 0}
 
-    async def get(self, project_id: str, task_id: str) -> dict[str, Any] | None:
-        """Get a single task by ID.
+async def update_task(
+    client: TickTickClient,
+    project_id: str,
+    task_id: str,
+    title: str | None = None,
+    content: str | None = None,
+    priority: int | None = None,
+    due_date: str | None = None,
+    status: int | None = None,
+    tags: list[str] | None = None,
+    reminders: list[str] | None = None,
+    completed_time: str | None = None,
+) -> dict[str, Any]:
+    """Update an existing task. Preserves untouched fields."""
+    existing = await get_task(client, project_id, task_id)
+    if not existing:
+        raise APIError(f"Task not found: {task_id} in project {project_id}")
 
-        Args:
-            project_id: The project ID containing the task.
-            task_id: The task ID.
+    payload = {k: v for k, v in existing.items() if k in TASK_FIELDS}
+    payload["projectId"] = project_id
 
-        Returns:
-            Task dictionary, or None if not found.
-        """
-        return await self.client.get(f"project/{project_id}/task/{task_id}")
+    if title is not None:
+        payload["title"] = title
+    if content is not None:
+        payload["content"] = content
+    if priority is not None:
+        payload["priority"] = priority
+    if due_date is not None:
+        payload["dueDate"] = due_date
+    if status is not None:
+        payload["status"] = status
+    if tags is not None:
+        payload["tags"] = tags
+    if reminders is not None:
+        payload["reminders"] = reminders
+    if completed_time is not None:
+        payload["completedTime"] = completed_time
 
-    async def create(
-        self,
-        project_id: str,
-        title: str,
-        content: str = "",
-        priority: int = 0,
-        due_date: str | None = None,
-        reminders: list[str] | None = None,
-        status: int | None = None,
-        completed_time: str | None = None,
-    ) -> dict[str, Any]:
-        """Create a new task in a project.
+    return await client.post(f"task/{task_id}", payload)
 
-        Args:
-            project_id: The project ID where the task should be created.
-            title: The task title.
-            content: Optional task description.
-            priority: Priority level 0-5 (0=none, 1=low, 3=medium, 5=high).
-            due_date: Optional due date in ISO 8601 format.
-            reminders: Optional list of reminder triggers in ISO 8601 duration format.
-            status: Optional status (0=open, 2=completed, -1=won't do).
-            completed_time: Optional completion timestamp in ISO 8601 format.
 
-        Returns:
-            Dict with success status, task data, and message.
-        """
-        task_data = {
-            "projectId": project_id,
-            "title": title,
-            "priority": max(0, min(5, priority)),
-        }
+async def complete_task(
+    client: TickTickClient, project_id: str, task_id: str,
+) -> dict[str, Any]:
+    """Mark a task as completed (status=2)."""
+    return await update_task(client, project_id, task_id, status=2)
 
-        if content:
-            task_data["content"] = content
-        if due_date:
-            task_data["dueDate"] = due_date
-        if reminders:
-            task_data["reminders"] = reminders
-        if status is not None:
-            task_data["status"] = status
-        if completed_time:
-            task_data["completedTime"] = completed_time
 
-        result = await self.client.post("task", task_data)
-
-        if result:
-            return {
-                "success": True,
-                "task": result,
-                "message": f"Task '{title}' created successfully",
-            }
-
-        return {"success": False, "error": "Failed to create task", "task": None}
-
-    async def update(
-        self,
-        project_id: str,
-        task_id: str,
-        title: str | None = None,
-        content: str | None = None,
-        priority: int | None = None,
-        due_date: str | None = None,
-        status: int | None = None,
-        tags: list[str] | None = None,
-        reminders: list[str] | None = None,
-        completed_time: str | None = None,
-    ) -> dict[str, Any]:
-        """Update an existing task.
-
-        Args:
-            project_id: The project ID containing the task.
-            task_id: The task ID to update.
-            title: Optional new title.
-            content: Optional new description.
-            priority: Optional new priority (0-5).
-            due_date: Optional new due date in ISO 8601 format.
-            status: Optional new status (0=open, 2=completed, -1=won't do).
-            tags: Optional list of tags.
-            reminders: Optional list of reminder triggers.
-            completed_time: Optional completion timestamp.
-
-        Returns:
-            Dict with success status, task data, and message.
-        """
-        existing_task = await self.get(project_id, task_id)
-        if not existing_task:
-            return {"success": False, "error": f"Could not retrieve task {task_id}", "task": None}
-
-        update_payload = {k: v for k, v in existing_task.items() if k in TASK_FIELDS}
-        update_payload["projectId"] = project_id
-
-        if title is not None:
-            update_payload["title"] = title
-        if content is not None:
-            update_payload["content"] = content
-        if priority is not None:
-            update_payload["priority"] = priority
-        if due_date is not None:
-            update_payload["dueDate"] = due_date
-        if status is not None:
-            update_payload["status"] = status
-        if tags is not None:
-            update_payload["tags"] = tags
-        if reminders is not None:
-            update_payload["reminders"] = reminders
-        if completed_time is not None:
-            update_payload["completedTime"] = completed_time
-
-        result = await self.client.post(f"task/{task_id}", update_payload)
-
-        if result:
-            return {
-                "success": True,
-                "task": result,
-                "message": f"Task '{update_payload.get('title', task_id)}' updated successfully",
-            }
-
-        return {"success": False, "error": "Failed to update task", "task": None}
-
-    async def complete(self, project_id: str, task_id: str) -> dict[str, Any]:
-        """Mark a task as completed.
-
-        Args:
-            project_id: The project ID containing the task.
-            task_id: The task ID to complete.
-
-        Returns:
-            Dict with success status, task data, and message.
-        """
-        result = await self.update(project_id, task_id, status=2)
-
-        if result.get("success"):
-            result["message"] = f"Task '{result['task'].get('title', task_id)}' marked as completed"
-
-        return result
-
-    async def delete(
-        self,
-        project_id: str,
-        task_id: str,
-        archive_path: str | None = None,
-        otp: str | None = None,
-        elevated: bool = False,
-    ) -> dict[str, Any]:
-        """Delete a task permanently.
-
-        Args:
-            project_id: The project ID containing the task.
-            task_id: The task ID to delete.
-            archive_path: Optional directory to save the local snapshot.
-            otp: One-time password for elevated access.
-            elevated: If True, enforces OTP validation (used by MCP tools).
-
-        Returns:
-            Dict with success status.
-        """
-        from .. import config
-        from . import archiver, security
-
-        # 1. Check Access Mode
-        access_mode = config.get_setting("deletion.access")
-
-        if access_mode == "disabled":
-            return {"success": False, "error": "Deletion is disabled in settings (deletion.access)."}
-
-        # 2. Security Check (OTP)
-        if elevated:
-            if not otp:
-                return {"success": False, "error": "OTP required for deletion (elevated access)."}
-            if not security.validate_otp(otp):
-                return {"success": False, "error": "Security Check Failed: Invalid or expired OTP."}
-
-        # 3. Handle Archival Logic
-        should_archive = False
-        resolved_path = None
-
-        if archive_path:
-            should_archive = True
-            resolved_path = archive_path
-        else:
-            disable_auto = config.get_setting("deletion.disable_auto_archive")
-            if not disable_auto:
-                should_archive = True
-                resolved_path = config.get_setting("deletion.archive")
-
-        if should_archive:
-            task_data = await self.get(project_id, task_id)
-            if task_data:
-                archiver.archive_deleted_task(project_id, task_id, task_data, resolved_path)
-            else:
-                logger.warning(f"Task {task_id} not found for archival, proceeding with delete attempt.")
-        else:
-            logger.info(f"Archival skipped for task {task_id} (No path provided and auto-archive disabled).")
-
-        # 4. Perform deletion
-        result = await self.client.delete(f"project/{project_id}/task/{task_id}")
-
-        if result is not None:
-            return {"success": True, "message": f"Task {task_id} deleted successfully."}
-
-        return {"success": False, "error": f"Failed to delete task {task_id}"}
+async def delete_task(client: TickTickClient, project_id: str, task_id: str) -> None:
+    """Permanently delete a task."""
+    await client.delete(f"project/{project_id}/task/{task_id}")

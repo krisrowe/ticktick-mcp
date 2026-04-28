@@ -1,4 +1,10 @@
-"""OAuth 2.0 authentication flow for TickTick API."""
+"""OAuth 2.0 helper to obtain a TickTick access token.
+
+Used by the ``ticktick auth login`` CLI command. The resulting token
+is meant to be fed into ``ticktick-admin users add`` /
+``ticktick-admin users update-profile`` so it lives in the
+mcp-app user store, not in any local config file.
+"""
 
 from __future__ import annotations
 
@@ -7,11 +13,8 @@ import socketserver
 import webbrowser
 from urllib.parse import parse_qs, urlparse
 
-import requests
+import httpx
 
-from .config import save_token
-
-# TickTick OAuth endpoints
 AUTH_URL = "https://ticktick.com/oauth/authorize"
 TOKEN_URL = "https://ticktick.com/oauth/token"
 REDIRECT_URI = "http://localhost:8080"
@@ -20,105 +23,76 @@ STATE = "ticktick-access-oauth"
 PORT = 8080
 
 
-class OAuthCallbackHandler(http.server.SimpleHTTPRequestHandler):
-    """HTTP handler that captures OAuth authorization code from redirect."""
+class _CallbackHandler(http.server.SimpleHTTPRequestHandler):
+    """Captures the authorization code from the OAuth redirect."""
 
     authorization_code: str | None = None
     server_should_stop: bool = False
 
-    def do_GET(self):
-        """Handle GET request from OAuth redirect."""
-        query_components = parse_qs(urlparse(self.path).query)
-
-        if "code" in query_components:
-            OAuthCallbackHandler.authorization_code = query_components["code"][0]
+    def do_GET(self):  # noqa: N802 — http.server API
+        params = parse_qs(urlparse(self.path).query)
+        if "code" in params:
+            _CallbackHandler.authorization_code = params["code"][0]
             self.send_response(200)
-            self.send_header("Content-type", "text/html")
+            self.send_header("Content-Type", "text/html")
             self.end_headers()
-            self.wfile.write(b"<html><head><title>Authentication Successful</title></head>")
-            self.wfile.write(b"<body style='font-family: sans-serif; text-align: center;'>")
-            self.wfile.write(b"<h1>Authentication Successful!</h1>")
-            self.wfile.write(b"<p>You can now close this browser window and return to the terminal.</p>")
-            self.wfile.write(b"</body></html>")
+            self.wfile.write(
+                b"<html><body style='font-family:sans-serif;text-align:center;'>"
+                b"<h1>Authentication Successful</h1>"
+                b"<p>Return to the terminal - your access token is being printed there.</p>"
+                b"</body></html>"
+            )
         else:
             self.send_response(400)
-            self.send_header("Content-type", "text/html")
+            self.send_header("Content-Type", "text/html")
             self.end_headers()
             self.wfile.write(b"<h1>Authentication Failed</h1>")
-            self.wfile.write(b"<p>Could not find an authorization code in the request. Please try again.</p>")
+        _CallbackHandler.server_should_stop = True
 
-        OAuthCallbackHandler.server_should_stop = True
-
-    def log_message(self, format, *args):
-        """Suppress HTTP request logging."""
-        pass
+    def log_message(self, format, *args):  # noqa: A002 — http.server API
+        return
 
 
 def run_oauth_flow(client_id: str, client_secret: str) -> str:
-    """Run the OAuth 2.0 authorization code flow.
-
-    Opens a browser for user authorization, captures the authorization code,
-    and exchanges it for an access token.
-
-    Args:
-        client_id: TickTick OAuth client ID.
-        client_secret: TickTick OAuth client secret.
-
-    Returns:
-        The access token.
+    """Open the browser for OAuth authorization and return the access token.
 
     Raises:
-        RuntimeError: If authorization fails or is cancelled.
-        requests.RequestException: If token exchange fails.
+        RuntimeError: If the user cancels or no code is returned.
+        httpx.HTTPError: If the token-exchange request fails.
     """
-    # Reset handler state
-    OAuthCallbackHandler.authorization_code = None
-    OAuthCallbackHandler.server_should_stop = False
+    _CallbackHandler.authorization_code = None
+    _CallbackHandler.server_should_stop = False
 
-    with socketserver.TCPServer(("", PORT), OAuthCallbackHandler) as httpd:
-        # Construct authorization URL
-        auth_request_url = (
+    with socketserver.TCPServer(("", PORT), _CallbackHandler) as httpd:
+        url = (
             f"{AUTH_URL}?client_id={client_id}&scope={SCOPE}"
             f"&redirect_uri={REDIRECT_URI}&state={STATE}&response_type=code"
         )
+        print(f"Opening browser for TickTick authorization on port {PORT}.")
+        print(f"If your browser doesn't open, visit: {url}")
+        webbrowser.open(url)
 
-        print(f"\nStarting local server on port {PORT}...")
-        print("\nYour browser should open for authorization.")
-        print("If it doesn't, please open this URL manually:")
-        print(f"  {auth_request_url}\n")
-
-        webbrowser.open(auth_request_url)
-
-        # Wait for callback
-        while not OAuthCallbackHandler.server_should_stop:
+        while not _CallbackHandler.server_should_stop:
             httpd.handle_request()
 
-    if not OAuthCallbackHandler.authorization_code:
-        raise RuntimeError("Authorization failed or was cancelled.")
+    if not _CallbackHandler.authorization_code:
+        raise RuntimeError("Authorization cancelled or no code returned.")
 
-    print("Authorization code received. Exchanging for access token...")
-
-    # Exchange code for token
-    token_payload = {
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "code": OAuthCallbackHandler.authorization_code,
-        "grant_type": "authorization_code",
-        "redirect_uri": REDIRECT_URI,
-        "scope": SCOPE,
-    }
-
-    response = requests.post(TOKEN_URL, data=token_payload, timeout=30)
+    response = httpx.post(
+        TOKEN_URL,
+        data={
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": _CallbackHandler.authorization_code,
+            "grant_type": "authorization_code",
+            "redirect_uri": REDIRECT_URI,
+            "scope": SCOPE,
+        },
+        timeout=30,
+    )
     response.raise_for_status()
-
-    token_info = response.json()
-    access_token = token_info.get("access_token")
-
-    if not access_token:
-        raise RuntimeError(f"No access token in response: {token_info}")
-
-    # Save token to config
-    save_token(access_token)
-    print(f"\nAccess token saved to ~/.ticktick-access/token")
-
-    return access_token
+    body = response.json()
+    token = body.get("access_token")
+    if not token:
+        raise RuntimeError(f"No access_token in TickTick response: {body}")
+    return token

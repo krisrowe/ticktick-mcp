@@ -1,27 +1,27 @@
-"""TickTick SDK - Core library for TickTick API access.
+"""TickTick SDK — programmatic access to the TickTick Open API.
 
-This SDK provides programmatic access to the TickTick API. It can be used by:
-- The ticktick CLI
-- The ticktick MCP server
-- Third-party applications
+Layout:
+    sdk.client       — low-level HTTP client and the SDK facade
+    sdk.projects     — project (list) operations
+    sdk.tasks        — task operations
 
-Example usage:
-    from ticktick.sdk.client import TickTickClient
-    from ticktick.sdk.projects import ProjectService
-    from ticktick.sdk.tasks import TaskService
-
-    # With a shared client
-    client = TickTickClient(token="...")
-    projects = ProjectService(client)
-    tasks = TaskService(client)
-
-    # Or directly with a token
-    projects = ProjectService(token="...")
-    tasks = TaskService(token="...")
+The :class:`TickTickSDK` facade in ``sdk.client`` is the entry point
+for MCP tools. It reads the access token from mcp-app's
+``current_user`` context, so callers don't pass tokens around.
 """
 
-from .client import TickTickClient
-from .projects import ProjectService
-from .tasks import TaskService
+from ticktick.sdk.client import (
+    APIError,
+    AuthenticationError,
+    TickTickClient,
+    TickTickError,
+    TickTickSDK,
+)
 
-__all__ = ["TickTickClient", "ProjectService", "TaskService"]
+__all__ = [
+    "TickTickClient",
+    "TickTickSDK",
+    "TickTickError",
+    "AuthenticationError",
+    "APIError",
+]

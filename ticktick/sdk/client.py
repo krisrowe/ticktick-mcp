@@ -1,9 +1,9 @@
-"""TickTick API HTTP client.
+"""TickTick API HTTP client and SDK facade.
 
-This module provides the HTTP client for making authenticated
-requests to the TickTick API. The client requires a token at
-construction — it never resolves credentials itself. Token
-resolution is the caller's responsibility (CLI, MCP, etc.).
+:class:`TickTickClient` is the low-level authenticated HTTP client.
+:class:`TickTickSDK` is a stateless classmethod facade for MCP tools
+— it reads the access token from mcp-app's ``current_user`` context
+and delegates to the SDK modules.
 """
 
 from __future__ import annotations
@@ -15,16 +15,33 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Constants
 TICKTICK_API_BASE = "https://api.ticktick.com/open/v1"
-USER_AGENT = "ticktick-access/1.0"
+USER_AGENT = "ticktick-access/0.5"
+
+
+class TickTickError(Exception):
+    """Base exception for TickTick API errors."""
+
+
+class AuthenticationError(TickTickError):
+    """Raised when the TickTick token is missing or rejected."""
+
+
+class APIError(TickTickError):
+    """Raised when the TickTick API returns a non-success status."""
 
 
 class TickTickClient:
-    """Authenticated HTTP client for the TickTick API."""
+    """Authenticated HTTP client for the TickTick Open API."""
 
     def __init__(self, token: str):
-        self.token = token
+        if not token:
+            raise AuthenticationError(
+                "No TickTick access token. Set the user's profile.access_token via:\n"
+                "  ticktick-admin users add <email> --access-token <token>\n"
+                "  ticktick-admin users update-profile <email> access_token <token>"
+            )
+        self._token = token
 
     async def request(
         self,
@@ -33,54 +50,110 @@ class TickTickClient:
         data: dict[str, Any] | None = None,
         params: dict[str, Any] | None = None,
     ) -> dict[str, Any] | list[dict[str, Any]] | None:
-        """Make an authenticated request to the TickTick API.
+        """Make an authenticated request. Returns parsed JSON or None.
 
-        Args:
-            method: HTTP method (GET, POST, DELETE, etc.)
-            endpoint: API endpoint (without base URL)
-            data: Optional JSON body data
-            params: Optional query parameters
-
-        Returns:
-            Parsed JSON response, or None if request failed.
+        Raises :class:`AuthenticationError` on 401, :class:`APIError`
+        on other non-success statuses.
         """
         headers = {
             "User-Agent": USER_AGENT,
-            "Authorization": f"Bearer {self.token}",
+            "Authorization": f"Bearer {self._token}",
             "Content-Type": "application/json",
         }
         url = f"{TICKTICK_API_BASE}/{endpoint}"
 
-        async with httpx.AsyncClient() as http_client:
-            try:
-                response = await http_client.request(
-                    method, url, headers=headers, json=data, params=params, timeout=30.0
-                )
-                response.raise_for_status()
+        async with httpx.AsyncClient() as http:
+            response = await http.request(
+                method, url, headers=headers, json=data, params=params, timeout=30.0,
+            )
 
-                # Handle successful empty responses (e.g. 204 No Content)
-                if response.status_code == 204 or not response.content:
-                    return {}
-
-                return response.json()
-            except httpx.HTTPStatusError as e:
-                logger.error(f"HTTP error for {url}: {e.response.status_code} - {e.response.text}")
-                return None
-            except httpx.RequestError as e:
-                logger.error(f"Request error for {url}: {e}")
-                return None
-            except Exception as e:
-                logger.error(f"Unexpected error for {url}: {e}")
-                return None
+        if response.status_code == 401:
+            raise AuthenticationError("TickTick rejected the access token (401)")
+        if response.status_code >= 400:
+            raise APIError(
+                f"TickTick API {method} {endpoint} -> {response.status_code}: "
+                f"{response.text[:200]}"
+            )
+        if response.status_code == 204 or not response.content:
+            return None
+        return response.json()
 
     async def get(self, endpoint: str, params: dict[str, Any] | None = None):
-        """Make a GET request."""
         return await self.request("GET", endpoint, params=params)
 
     async def post(self, endpoint: str, data: dict[str, Any] | None = None):
-        """Make a POST request."""
         return await self.request("POST", endpoint, data=data)
 
     async def delete(self, endpoint: str):
-        """Make a DELETE request."""
         return await self.request("DELETE", endpoint)
+
+
+class TickTickSDK:
+    """Stateless facade for MCP tools.
+
+    Each classmethod resolves the current user's TickTick access token
+    from mcp-app's ``current_user`` ContextVar, builds a fresh client,
+    and delegates to a module-level SDK function. Tools call these
+    methods; SDK modules stay free of identity concerns.
+    """
+
+    @classmethod
+    def _client(cls) -> TickTickClient:
+        from mcp_app.context import current_user
+
+        user = current_user.get()
+        profile = user.profile
+        token = getattr(profile, "access_token", None) if profile else None
+        if not token and isinstance(profile, dict):
+            token = profile.get("access_token")
+        return TickTickClient(token=token or "")
+
+    @classmethod
+    async def list_projects(cls) -> dict[str, Any]:
+        from ticktick.sdk import projects
+
+        items = await projects.list_projects(cls._client())
+        return {"projects": items, "count": len(items)}
+
+    @classmethod
+    async def list_tasks(cls, project_id: str) -> dict[str, Any]:
+        from ticktick.sdk import tasks
+
+        return await tasks.list_tasks(cls._client(), project_id)
+
+    @classmethod
+    async def create_task(cls, project_id: str, title: str, **kwargs) -> dict[str, Any]:
+        from ticktick.sdk import tasks
+
+        result = await tasks.create_task(cls._client(), project_id, title, **kwargs)
+        return {"success": True, "task": result, "message": f"Task '{title}' created"}
+
+    @classmethod
+    async def update_task(cls, project_id: str, task_id: str, **kwargs) -> dict[str, Any]:
+        from ticktick.sdk import tasks
+
+        result = await tasks.update_task(cls._client(), project_id, task_id, **kwargs)
+        return {
+            "success": True,
+            "task": result,
+            "message": f"Task {task_id} updated",
+        }
+
+    @classmethod
+    async def complete_task(cls, project_id: str, task_id: str) -> dict[str, Any]:
+        from ticktick.sdk import tasks
+
+        result = await tasks.complete_task(cls._client(), project_id, task_id)
+        title = (result or {}).get("title", task_id)
+        return {
+            "success": True,
+            "task": result,
+            "message": f"Task '{title}' marked completed",
+        }
+
+    @classmethod
+    async def delete_task(cls, project_id: str, task_id: str) -> dict[str, Any]:
+        from ticktick.sdk import tasks
+
+        await tasks.delete_task(cls._client(), project_id, task_id)
+        return {"success": True, "message": f"Task {task_id} deleted"}

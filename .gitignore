@@ -25,20 +25,23 @@ htmlcov/
 # Logs
 *.log
 
-# IDE
+# IDE / agent scratch
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.claude/
+.gemini/*
+!.gemini/settings.json
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Old files (if any)
+# Stale dependencies
 dev-requirements.txt
 requirements.txt
 
-# Session temporary files
+# Session temp files
 temp/

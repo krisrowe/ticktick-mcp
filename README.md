@@ -1,214 +1,343 @@
 # ticktick-access
 
-CLI and MCP Server for TickTick task management. Integrates with Claude Code, Gemini CLI, and other MCP-compatible clients.
+CLI and MCP server for [TickTick](https://ticktick.com) task management.
+Wraps the TickTick Open API as MCP tools so AI agents (Claude Code,
+Gemini CLI, Claude.ai, and any MCP client) can read and modify your
+projects and tasks.
 
-## Quick Start
+The package installs three commands:
 
-```bash
-# Install
-pipx install git+https://github.com/USER/ticktick-access.git
+- `ticktick-mcp` — MCP server (HTTP and stdio transports)
+- `ticktick-admin` — user and deployment management
+- `ticktick` — small OAuth helper to obtain a TickTick access token
 
-# Setup credentials (one-time)
-ticktick client set    # Enter client ID/secret from developer.ticktick.com
-ticktick auth          # OAuth flow to get access token
+The MCP server runs locally over stdio for personal use, or over HTTP
+for multi-user shared deployments. Per-user TickTick tokens live in
+the user store, never in shared config files or environment variables.
 
-# Configure MCP for Claude Code
-claude mcp add --scope user ticktick -- ticktick-mcp --stdio
+Built on [mcp-app](https://github.com/echomodel/mcp-app).
 
-# Configure MCP for Gemini CLI
-gemini mcp add ticktick ticktick-mcp --stdio --scope user
-```
+## Install
 
-## Features
-
-- **CLI Tool (`ticktick`)** - Manage authentication and credentials
-- **MCP Server (`ticktick-mcp`)** - Task management for LLM clients
-- **Central Config** - Credentials stored in `~/.ticktick-access/`
-- **No Docker Required** - Native Python installation via pipx
-
-## Prerequisites
-
-- **Python 3.10+**
-- **pipx** - For isolated installation ([install pipx](https://pipx.pypa.io/stable/installation/))
-- **TickTick Developer Account** - Register at [developer.ticktick.com](https://developer.ticktick.com/)
-
-## Installation
-
-### Install via pipx (Recommended)
+Requires Python 3.11+ and [pipx](https://pipx.pypa.io/).
 
 ```bash
-pipx install git+https://github.com/USER/ticktick-access.git
+pipx install git+https://github.com/krisrowe/ticktick-mcp.git
 ```
 
-This installs both the `ticktick` CLI and `ticktick-mcp` server commands.
+This installs `ticktick`, `ticktick-mcp`, and `ticktick-admin` on your
+`PATH`.
 
-### Upgrade
+## TickTick OAuth credentials (one-time)
+
+Each user needs a TickTick access token. To get one:
+
+1. Register an app at [developer.ticktick.com](https://developer.ticktick.com/).
+2. Set the OAuth redirect URI to `http://localhost:8080`.
+3. Note the **Client ID** and **Client Secret**.
+4. Run the OAuth helper:
+
+   ```bash
+   ticktick auth login \
+       --client-id <client-id> \
+       --client-secret <client-secret>
+   ```
+
+   Or, to keep secrets off the command line:
+
+   ```bash
+   export TICKTICK_CLIENT_ID=<client-id>
+   export TICKTICK_CLIENT_SECRET=<client-secret>
+   ticktick auth login
+   ```
+
+   The browser opens, you authorize the app, and the access token
+   prints to stdout. TickTick tokens currently expire after roughly
+   24 hours, so you will repeat this when a token expires.
+
+The token then goes into either a local user record (for stdio mode)
+or a deployed user record (for HTTP mode) — see below.
+
+## Run locally (stdio)
+
+For personal use on a single machine.
+
+### 1. Configure local mode and register the local user
 
 ```bash
-pipx upgrade ticktick-access
+ticktick-admin connect local
+ticktick-admin users add local --access-token <ticktick-token>
 ```
 
-### Uninstall
+`connect local` writes `~/.config/ticktick/setup.json` so subsequent
+`ticktick-admin` commands target the local user store.
+`users add local` writes the user record (with the TickTick token in
+the profile) under `$XDG_DATA_HOME/ticktick/users/`.
+
+When the TickTick token expires, rotate it without re-registering:
 
 ```bash
-pipx uninstall ticktick-access
+ticktick-admin users update-profile local access_token <new-token>
 ```
 
-## Setup
+### 2. Register the MCP server with your client
 
-### 1. Register Your Application with TickTick
-
-1. Go to [developer.ticktick.com](https://developer.ticktick.com/) and sign in
-2. Click **Manage Apps** and create a new application
-3. Note your **Client ID** and **Client Secret**
-4. Set the **OAuth redirect URL** to: `http://localhost:8080`
-
-### 2. Configure Client Credentials
+**Claude Code:**
 
 ```bash
-ticktick client set
+claude mcp add ticktick -- ticktick-mcp stdio --user local
 ```
 
-Enter your Client ID and Client Secret when prompted. Credentials are saved to `~/.ticktick-access/config.yaml`.
-
-### 3. Authenticate
+**Gemini CLI:**
 
 ```bash
-ticktick auth
+gemini mcp add ticktick --command ticktick-mcp --args "stdio --user local"
 ```
 
-This opens your browser for OAuth authorization. After granting permission, the access token is saved to `~/.ticktick-access/token`.
+The `--user local` flag tells the MCP server which user record to
+load when running over stdio.
 
-### 4. Verify Setup
+### 3. Smoke test
+
+In your MCP client, ask the agent to list your TickTick projects.
+The server returns project IDs, names, and metadata via the
+`list_projects` tool.
+
+## Deploy (HTTP)
+
+For shared, multi-user, always-on access — typically used with web
+clients like [Claude.ai](https://claude.ai/) and remote agent
+deployments.
+
+### Runtime contract
+
+Any HTTP deployment must provide:
+
+| Variable | Required | Default | Purpose |
+|----------|----------|---------|---------|
+| `SIGNING_KEY` | Yes | — startup fails | HMAC key for signing JWTs (32+ random chars) |
+| `APP_USERS_PATH` | Yes for persistence | `~/.local/share/ticktick/users/` | Directory holding per-user JSON records (must be persistent storage) |
+| `JWT_AUD` | No | unset | Expected JWT `aud` claim. If unset, audience is not validated |
+| `TOKEN_DURATION_SECONDS` | No | ~10 years | Lifetime of newly issued user tokens |
+| `LOG_LEVEL` | No | `INFO` | Standard Python log level |
+
+The server:
+
+- listens on `0.0.0.0:8080` (override with `--host` / `--port`)
+- serves the MCP transport at `/`
+- serves a `GET /health` endpoint (no auth) returning `{"status":"ok"}`
+- serves `/admin/users`, `/admin/tokens`, `/admin/users/{email}/profile`
+  (auth via JWT signed with `SIGNING_KEY`, `scope=admin`)
+- handles its own auth — the platform must allow unauthenticated HTTP
+  through to the app
+
+Start command (any process supervisor, including a Dockerfile `CMD`):
 
 ```bash
-ticktick status
+ticktick-mcp serve --host 0.0.0.0 --port 8080
 ```
 
-## MCP Client Configuration
+### Docker
 
-### Claude Code CLI
+A baseline Dockerfile ships in this repo. To build and run:
 
 ```bash
-claude mcp add --scope user ticktick -- ticktick-mcp --stdio
+docker build -t ticktick-access .
+docker run -p 8080:8080 \
+    -e SIGNING_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')" \
+    -v $(pwd)/.users:/data/users \
+    -e APP_USERS_PATH=/data/users \
+    ticktick-access
 ```
 
-For detailed configuration options, see [docs/CLAUDE-CODE.md](./docs/CLAUDE-CODE.md).
+The same image runs anywhere a Python container runs — Cloud Run,
+Fly, Render, Heroku (via Buildpacks), Railway, Kubernetes, ECS,
+bare metal.
 
-### Gemini CLI
+### gapp (Cloud Run)
+
+If you use [gapp](https://github.com/echomodel/gapp), `gapp.yaml`
+describes the Cloud Run deployment with managed `SIGNING_KEY` and
+`APP_USERS_PATH`. Deploy with:
 
 ```bash
-gemini mcp add ticktick --command ticktick-mcp --args "--stdio" --scope user
+gapp deploy
 ```
 
-For detailed configuration options, see [docs/GEMINI-CLI.md](./docs/GEMINI-CLI.md).
+gapp generates and stores `SIGNING_KEY` in Secret Manager on first
+deploy and provisions a persistent volume for `APP_USERS_PATH`.
 
-## CLI Reference
+This is one supported path among many — the runtime contract above
+is what matters; gapp is convenience.
 
-| Command | Description |
-|---------|-------------|
-| `ticktick auth` | Run OAuth flow to get/refresh access token |
-| `ticktick client set` | Set client credentials interactively |
-| `ticktick client show` | Show current client config (redacted) |
-| `ticktick status` | Show authentication status |
-| `ticktick --version` | Show version |
-| `ticktick --help` | Show help |
+## Connect the admin CLI to a deployed instance
 
-## MCP Server Tools
+After deploying, `ticktick-admin` needs the deployment URL and the
+`SIGNING_KEY` value to manage users.
 
-The MCP server exposes these tools for LLM clients:
+```bash
+ticktick-admin connect https://your-ticktick-mcp.example.com \
+    --signing-key <signing-key>
+```
+
+Retrieve `<signing-key>` from wherever your deployment stored it:
+
+- **gapp**: `gapp_secret_get(name="signing-key", plaintext=True)` via
+  the gapp MCP, or `gcloud secrets versions access latest --secret=ticktick-mcp-signing-key`.
+- **GCP Secret Manager directly**:
+  `gcloud secrets versions access latest --secret=<your-secret-name>`.
+- **GitHub Actions / CI secrets**: read from your CI provider's UI.
+- **Other secret managers**: use that tool's read command.
+
+`connect` saves the URL and signing key to
+`~/.config/ticktick/setup.json` so subsequent admin commands run
+without repeating the flags. Switch back to local at any time with
+`ticktick-admin connect local`.
+
+## Manage users on a deployed instance
+
+```bash
+# Register a new user. Their TickTick token goes in the profile.
+ticktick-admin users add alice@example.com --access-token <token>
+
+# List registered users.
+ticktick-admin users list
+
+# Rotate a user's TickTick token after the old one expires.
+ticktick-admin users update-profile alice@example.com access_token <new-token>
+
+# Mint an additional MCP-server token for an existing user
+# (e.g. to register the MCP server in another client).
+ticktick-admin tokens create alice@example.com
+
+# Revoke a user.
+ticktick-admin users revoke alice@example.com
+```
+
+Run `ticktick-admin users add --help` to see the typed flags
+generated from the `Profile` model — the `--access-token` flag's help
+text describes what the token is and how to obtain one.
+
+## Verify and register MCP clients
+
+### Probe the deployment
+
+```bash
+ticktick-admin probe
+```
+
+`probe` checks `/health`, then opens an MCP session and round-trips
+the tool list. Output names every registered tool — `list_projects`,
+`list_tasks`, `create_task`, `update_task`, `complete_task`,
+`delete_task`. If the deployment is healthy and tools are exposed,
+`probe` reports `MCP: ok`.
+
+### Generate MCP client registration commands
+
+```bash
+ticktick-admin register --user alice@example.com
+```
+
+Mints a fresh user-scoped token and emits ready-to-paste registration
+commands for Claude Code, Gemini CLI, and the Claude.ai URL form,
+each pre-filled with the deployment URL and the new token.
+
+Limit to a specific client:
+
+```bash
+ticktick-admin register --user alice@example.com --client claude
+ticktick-admin register --user alice@example.com --client gemini
+ticktick-admin register --user alice@example.com --client claude.ai
+```
+
+### Manual MCP client registration
+
+If you prefer not to use `register`, the patterns are:
+
+**Claude Code:**
+
+```bash
+claude mcp add --scope user ticktick \
+    --transport http \
+    --url https://your-deployment/ \
+    --header "Authorization: Bearer ${TICKTICK_TOKEN}"
+```
+
+**Gemini CLI:**
+
+```bash
+gemini mcp add ticktick \
+    --transport http \
+    --url https://your-deployment/ \
+    --header "Authorization: Bearer ${TICKTICK_TOKEN}"
+```
+
+Both clients expand `${VAR}` in headers, so put the token in your
+shell environment rather than in the registration command.
+
+## Configuration files
+
+```
+~/.config/ticktick/
+└── setup.json           # ticktick-admin connect target (local or remote URL + signing key)
+
+$XDG_DATA_HOME/ticktick/users/   # local mode user records (auth + profile)
+```
+
+Both are managed by `ticktick-admin` — do not hand-edit unless you
+know the schema.
+
+## MCP tools exposed
 
 | Tool | Description |
 |------|-------------|
-| `list_projects` | List all TickTick projects |
-| `list_tasks` | List tasks in a specific project |
+| `list_projects` | List all TickTick projects (lists) |
+| `list_tasks` | List tasks in a project |
 | `create_task` | Create a new task |
 | `update_task` | Update an existing task |
-| `complete_task` | Mark a task as complete |
-
-## MCP Server Resources
-
-| Resource | Description |
-|----------|-------------|
-| `ticktick://projects` | All projects as JSON |
-| `ticktick://tasks/{list_id}` | Tasks in a specific project |
-
-## Token Expiration
-
-TickTick access tokens expire after approximately 24 hours. When your token expires:
-
-```bash
-ticktick auth
-```
-
-No reconfiguration of MCP clients is needed - they automatically read from `~/.ticktick-access/token`.
-
-## Configuration Files
-
-```
-~/.ticktick-access/
-├── config.yaml    # Client credentials (client_id, client_secret)
-└── token          # Access token
-```
-
-Both files have restricted permissions (600) for security.
-
-## Docker (Alternative)
-
-Docker is available as an alternative deployment method. See the Docker section below.
-
-### Build Docker Image
-
-```bash
-docker build -t ticktick-mcp-server:latest .
-```
-
-### Run with Docker
-
-```bash
-# HTTP transport (manual container management)
-docker run -d --name ticktick-mcp-server -p 8000:8000 \
-  -v ~/.ticktick-access:/root/.ticktick-access:ro \
-  ticktick-mcp-server:latest
-
-# Stdio transport (for MCP clients)
-docker run -i --rm \
-  -v ~/.ticktick-access:/root/.ticktick-access:ro \
-  ticktick-mcp-server:latest python server-stdio.py
-```
+| `complete_task` | Mark a task as completed |
+| `delete_task` | Permanently delete a task |
 
 ## Troubleshooting
 
-### "No access token found"
+**"No TickTick access token" / 401 from TickTick** — the user's
+token expired. Run `ticktick auth login`, then
+`ticktick-admin users update-profile <email> access_token <new>`.
 
-Run `ticktick auth` to authenticate.
+**"User not found" on the deployment** — register the user with
+`ticktick-admin users add`.
 
-### "Client credentials not configured"
+**MCP client can't connect / 401 / 403 from your deployment** —
+the user-scoped MCP token has expired or was revoked. Mint a new
+one with `ticktick-admin tokens create <email>` and update the
+client's registration.
 
-Run `ticktick client set` to configure your client ID and secret.
+**Admin commands fail with "Not configured"** — run
+`ticktick-admin connect local` or
+`ticktick-admin connect <url> --signing-key <key>`.
 
-### Token expired (401 errors)
+## Testing
 
-Run `ticktick auth` to refresh your token.
+Unit tests run offline with no credentials:
 
-### Command not found after install
-
-Ensure pipx's bin directory is in your PATH:
 ```bash
-pipx ensurepath
-# Then restart your shell
+make test            # creates venv on first run, then runs all tests
 ```
 
-## Documentation
+The `tests/framework/` directory carries mcp-app's reusable
+conformance suite — auth enforcement, admin endpoints, JWT handling,
+CLI wiring, tool protocol, SDK coverage. Run it directly with:
 
-- [CLAUDE-CODE.md](./docs/CLAUDE-CODE.md) - Claude Code CLI configuration
-- [GEMINI-CLI.md](./docs/GEMINI-CLI.md) - Gemini CLI configuration
-- [CONTRIBUTING.md](./docs/CONTRIBUTING.md) - Development setup, version management, architecture
-- [TOOLS.md](./docs/TOOLS.md) - Detailed tool and resource reference
+```bash
+make framework-test
+```
 
-## Contributing
+## Further reading
 
-See [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) for development setup, version management, and the architecture roadmap.
+- [CONTRIBUTING.md](CONTRIBUTING.md) — architecture, adding tools,
+  profile fields, testing standards.
+- [mcp-app](https://github.com/echomodel/mcp-app) — the framework
+  this app is built on.
 
 ## License
 
