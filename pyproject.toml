@@ -34,8 +34,8 @@ ticktick-admin = "ticktick:app.admin_cli"
 ticktick = "ticktick:app"
 
 [project.urls]
-Homepage = "https://github.com/krisrowe/ticktick-mcp"
-Repository = "https://github.com/krisrowe/ticktick-mcp"
+Homepage = "https://github.com/echomodel/ticktick-mcp"
+Repository = "https://github.com/echomodel/ticktick-mcp"
 
 [tool.setuptools.packages.find]
 where = ["."]

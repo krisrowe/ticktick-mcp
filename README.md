@@ -22,7 +22,7 @@ Built on [mcp-app](https://github.com/echomodel/mcp-app).
 Requires Python 3.11+ and [pipx](https://pipx.pypa.io/).
 
 ```bash
-pipx install git+https://github.com/krisrowe/ticktick-mcp.git
+pipx install git+https://github.com/echomodel/ticktick-mcp.git
 ```
 
 This installs `ticktick`, `ticktick-mcp`, and `ticktick-admin` on your
