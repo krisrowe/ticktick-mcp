@@ -153,18 +153,112 @@ The default `pytest` invocation excludes `tests/integration/`
 The OAuth helper (`ticktick auth login`) uses `TICKTICK_CLIENT_ID`
 and `TICKTICK_CLIENT_SECRET` so secrets stay out of shell history.
 
-## Versioning
+## Releasing and local verification
 
-`__version__` lives in `ticktick/__init__.py` and `pyproject.toml`
-(`project.version`). Bump both together for any release that
-changes runtime behavior, then tag:
+Use this checklist before pushing a runtime-touching change, and
+again before redeploying. Skip steps that don't apply (the bullets
+say when each one matters).
+
+### 1. Bump the version (runtime-touching changes only)
+
+`__version__` lives in **two** places that must move together:
+
+- `ticktick/__init__.py` — `__version__ = "X.Y.Z"`
+- `pyproject.toml` — `[project] version = "X.Y.Z"`
+
+Bump both in the same commit as the change. `pipx install --upgrade`
+only re-installs when the version number rises, so without a bump
+downstream installs stay on the old code.
+
+| Change type | Bump |
+|-------------|------|
+| Bug fix, internal cleanup | patch (0.5.0 → 0.5.1) |
+| New tool, new profile field, new flag | minor (0.5.0 → 0.6.0) |
+| Removed tool, renamed CLI, profile schema break | major (0.5.0 → 1.0.0) |
+
+Documentation-only changes don't need a bump.
+
+### 2. Refresh the locally-installed CLIs
+
+If you installed via `pipx install -e .`, the `ticktick`,
+`ticktick-mcp`, and `ticktick-admin` entry points already track
+the working tree — no action needed for source edits inside
+existing modules.
+
+Reinstall is only required when:
+
+- `pyproject.toml` `[project.scripts]` or `[project.entry-points]`
+  changed (new CLI, renamed CLI, new entry point group)
+- The package wasn't installed editable in the first place
+
+```bash
+pipx install -e . --force
+```
+
+Confirm:
+
+```bash
+ticktick --version          # should print the new version
+which ticktick-admin         # should resolve to ~/.local/bin/ticktick-admin
+```
+
+### 3. Run the test suites
+
+```bash
+make test                    # unit + framework conformance
+```
+
+Both must be green before push. If only the framework suite needs
+re-running (e.g., after upgrading mcp-app):
+
+```bash
+make framework-test
+```
+
+### 4. Live local validation (stdio)
+
+Unit and conformance tests don't exercise the real MCP transport.
+Register the server with a real client and invoke at least one
+tool:
+
+```bash
+claude mcp add ticktick -- ticktick-mcp stdio --user local
+```
+
+Then ask Claude to list your TickTick projects. A read-only call
+like `list_projects` is the right smoke test — no mutation, no
+cost beyond the API roundtrip.
+
+### 5. Optional: scripted smoke test via `claude -p`
+
+For a fast, repeatable, non-interactive check that exercises a
+read-only tool end-to-end through the MCP protocol:
+
+```bash
+claude -p "List my ticktick projects and report how many you found" \
+    --allowedTools "mcp__ticktick__list_projects"
+```
+
+Pick a prompt that's cheap, fast, and safe (read-only tool, no
+mutation). Skip this if `claude` CLI isn't available in your
+environment.
+
+### 6. Tag and push
 
 ```bash
 git tag vX.Y.Z
-git push --tags
+git push origin main --tags
 ```
 
-`pipx install --upgrade` only picks up changes when the version
-number rises. During local development, `pipx install -e .` from
-the repo root means installed CLIs always point at the working
-tree — no version bumps required.
+### 7. After cloud redeploy (HTTP deployments only)
+
+When you've redeployed the HTTP server (e.g. via `gapp deploy`),
+verify the running instance:
+
+```bash
+ticktick-admin probe
+```
+
+`probe` checks `/health` and round-trips the MCP tool list. If it
+reports `MCP: ok` and lists every expected tool, the deploy is
+serving the new code.
