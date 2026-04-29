@@ -275,18 +275,6 @@ gemini mcp add ticktick \
 Both clients expand `${VAR}` in headers, so put the token in your
 shell environment rather than in the registration command.
 
-## Configuration files
-
-```
-~/.config/ticktick/
-└── setup.json           # ticktick-admin connect target (local or remote URL + signing key)
-
-$XDG_DATA_HOME/ticktick/users/   # local mode user records (auth + profile)
-```
-
-Both are managed by `ticktick-admin` — do not hand-edit unless you
-know the schema.
-
 ## MCP tools exposed
 
 | Tool | Description |
