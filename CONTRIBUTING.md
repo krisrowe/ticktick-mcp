@@ -195,12 +195,16 @@ Reinstall is only required when:
 pipx install -e . --force
 ```
 
-Confirm:
+Confirm the install is editable so subsequent source edits track:
 
 ```bash
-ticktick --version          # should print the new version
-which ticktick-admin         # should resolve to ~/.local/bin/ticktick-admin
+pipx list 2>&1 | grep -A5 ticktick-access
 ```
+
+The output must include the `(editable)` marker. If it doesn't, rerun
+`pipx install -e . --force`. A passing `ticktick --version` is not
+sufficient — version strings can match across stale and current
+installs, since source edits don't bump the version on their own.
 
 ### 3. Run the test suites
 
@@ -216,6 +220,10 @@ make framework-test
 ```
 
 ### 4. Live local validation (stdio)
+
+Confirm Step 2 passed first — this smoke test runs against the
+installed CLI, so a stale snapshot install will produce a green
+result that doesn't reflect the working tree.
 
 Unit and conformance tests don't exercise the real MCP transport.
 Register the server with a real client and invoke at least one

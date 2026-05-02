@@ -232,6 +232,8 @@ the tool list. Output names every registered tool — `list_projects`,
 `delete_task`. If the deployment is healthy and tools are exposed,
 `probe` reports `MCP: ok`.
 
+Add `--json` for structured output suitable for scripts and agents.
+
 ### Generate MCP client registration commands
 
 ```bash
@@ -240,7 +242,8 @@ ticktick-admin register --user alice@example.com
 
 Mints a fresh user-scoped token and emits ready-to-paste registration
 commands for Claude Code, Gemini CLI, and the Claude.ai URL form,
-each pre-filled with the deployment URL and the new token.
+each pre-filled with the deployment URL and the new token. Add
+`--json` for structured output suitable for scripts and agents.
 
 Limit to a specific client:
 

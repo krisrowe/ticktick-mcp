@@ -9,6 +9,7 @@ and delegates to the SDK modules.
 from __future__ import annotations
 
 import logging
+from importlib.metadata import version
 from typing import Any
 
 import httpx
@@ -16,7 +17,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 TICKTICK_API_BASE = "https://api.ticktick.com/open/v1"
-USER_AGENT = "ticktick-access/0.5"
+USER_AGENT = f"ticktick-access/{version('ticktick-access')}"
 
 
 class TickTickError(Exception):
