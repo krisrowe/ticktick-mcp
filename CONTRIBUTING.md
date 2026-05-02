@@ -95,6 +95,20 @@ profile field:
    conformance test in `tests/framework/` will fail if a tool's
    SDK methods don't appear in the SDK test files.
 
+## Smoke-test tool
+
+`ticktick/__init__.py` declares `count_projects` as the deployment's
+`SafeTool`. `ticktick-admin safe-tool --invoke` mints a short-lived
+user-scoped token, calls the tool through the MCP transport, and
+prints the resulting `{"count": N}` envelope. The response carries
+no user-authored content (no project names, no IDs), so it is safe
+to log and surface in admin tooling.
+
+If you add another count-shaped tool that's a better fit, change the
+`safe_tool=SafeTool(...)` declaration on the `App` to point at it.
+The framework also accepts no `safe_tool` at all — `ticktick-admin
+safe-tool` falls back to a structured "not declared" envelope.
+
 ## Testing
 
 Sociable unit tests by policy: minimal mocking, full code paths,

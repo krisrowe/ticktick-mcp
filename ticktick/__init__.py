@@ -1,13 +1,13 @@
 """TickTick Access — CLI and MCP server for TickTick task management."""
 
 from pydantic import BaseModel, Field
-from mcp_app import App
+from mcp_app import App, SafeTool
 
 import ticktick as _self
 from ticktick.mcp import tools
 
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 
 class Profile(BaseModel):
@@ -39,6 +39,11 @@ app = App(
     sdk_package=_self,
     profile_model=Profile,
     profile_expand=True,
+    safe_tool=SafeTool(
+        name="count_projects",
+        arguments={},
+        description="returns the number of TickTick projects in the user's account",
+    ),
 )
 
 

@@ -52,6 +52,26 @@ async def test_list_projects_raises_authentication_error_on_401():
 
 
 @respx.mock
+async def test_count_projects_returns_length_of_list_projects():
+    respx.get("https://api.ticktick.com/open/v1/project").mock(
+        return_value=httpx.Response(200, json=[
+            {"id": "p1", "name": "Work"},
+            {"id": "p2", "name": "Personal"},
+            {"id": "p3", "name": "Errands"},
+        ])
+    )
+    assert await projects.count_projects(TickTickClient(token="t")) == 3
+
+
+@respx.mock
+async def test_count_projects_returns_zero_when_empty():
+    respx.get("https://api.ticktick.com/open/v1/project").mock(
+        return_value=httpx.Response(200, json=[])
+    )
+    assert await projects.count_projects(TickTickClient(token="t")) == 0
+
+
+@respx.mock
 async def test_get_project_data_returns_full_project_with_tasks():
     respx.get("https://api.ticktick.com/open/v1/project/p1/data").mock(
         return_value=httpx.Response(200, json={

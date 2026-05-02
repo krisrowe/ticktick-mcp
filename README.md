@@ -203,6 +203,9 @@ ticktick-admin users add alice@example.com --access-token <token>
 # List registered users.
 ticktick-admin users list
 
+# Read the current profile (which fields are set, which are missing).
+ticktick-admin users get-profile alice@example.com
+
 # Rotate a user's TickTick token after the old one expires.
 ticktick-admin users update-profile alice@example.com access_token <new-token>
 
@@ -233,6 +236,35 @@ the tool list. Output names every registered tool — `list_projects`,
 `probe` reports `MCP: ok`.
 
 Add `--json` for structured output suitable for scripts and agents.
+
+### Inspect tools on the running deployment
+
+If `probe` reports an issue or you want a closer look at what the
+deployment is exposing, the `tools` group invokes JSON-RPC against
+the live MCP transport:
+
+```bash
+ticktick-admin tools list                       # enumerate tool names
+ticktick-admin tools show list_projects         # show schema and example
+ticktick-admin tools call list_projects         # invoke with no args
+ticktick-admin tools call create_task --arg project_id=<id> --arg title='Hello'
+```
+
+`tools call` mints a short-lived user-scoped token (default: first
+registered user; override with `--user <email>`) and round-trips
+through the deployment's MCP layer the same way an MCP client would.
+
+### End-to-end smoke test
+
+```bash
+ticktick-admin safe-tool --invoke
+```
+
+Invokes `count_projects` end-to-end through the deployment's MCP
+transport — the full path from JWT validation through tool dispatch
+to TickTick's API and back. The response is just a count, so it
+exercises the full stack without surfacing any user-authored content
+in the admin output.
 
 ### Generate MCP client registration commands
 
@@ -283,6 +315,7 @@ shell environment rather than in the registration command.
 | Tool | Description |
 |------|-------------|
 | `list_projects` | List all TickTick projects (lists) |
+| `count_projects` | Return the number of projects (safe smoke-test tool — see below) |
 | `list_tasks` | List tasks in a project |
 | `create_task` | Create a new task |
 | `update_task` | Update an existing task |

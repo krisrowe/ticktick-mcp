@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ticktick-access"
-version = "0.5.0"
+version = "0.6.0"
 description = "CLI and MCP Server for TickTick task management, built on mcp-app"
 readme = "README.md"
 license = "MIT"

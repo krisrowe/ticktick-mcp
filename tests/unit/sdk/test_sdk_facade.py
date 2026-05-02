@@ -77,6 +77,17 @@ async def test_facade_raises_when_profile_has_no_token():
 
 
 @respx.mock
+async def test_facade_count_projects_returns_count_envelope(authenticated_user):
+    respx.get("https://api.ticktick.com/open/v1/project").mock(
+        return_value=httpx.Response(200, json=[
+            {"id": "p1", "name": "Work"},
+            {"id": "p2", "name": "Personal"},
+        ])
+    )
+    assert await TickTickSDK.count_projects() == {"count": 2}
+
+
+@respx.mock
 async def test_facade_create_task_returns_success_envelope(authenticated_user):
     respx.post("https://api.ticktick.com/open/v1/task").mock(
         return_value=httpx.Response(200, json={"id": "new", "title": "Buy milk"})

@@ -31,6 +31,22 @@ async def list_projects() -> dict[str, Any]:
         return {"error": str(e), "projects": [], "count": 0}
 
 
+async def count_projects() -> dict[str, Any]:
+    """Return the number of TickTick projects for the authenticated user.
+
+    Returns ``{"count": <int>}`` — no project names, IDs, or other
+    user-authored content. Used as the deployment's safe smoke-test
+    tool (``ticktick-admin safe-tool --invoke``).
+    """
+    try:
+        return await sdk.count_projects()
+    except AuthenticationError as e:
+        return {"error": str(e), "count": 0}
+    except APIError as e:
+        logger.error(f"count_projects: {e}")
+        return {"error": str(e), "count": 0}
+
+
 async def list_tasks(project_id: str) -> dict[str, Any]:
     """List all tasks in a TickTick project.
 

@@ -117,6 +117,12 @@ class TickTickSDK:
         return {"projects": items, "count": len(items)}
 
     @classmethod
+    async def count_projects(cls) -> dict[str, Any]:
+        from ticktick.sdk import projects
+
+        return {"count": await projects.count_projects(cls._client())}
+
+    @classmethod
     async def list_tasks(cls, project_id: str) -> dict[str, Any]:
         from ticktick.sdk import tasks
 

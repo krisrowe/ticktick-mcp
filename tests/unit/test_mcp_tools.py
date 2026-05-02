@@ -33,6 +33,28 @@ async def test_list_projects_returns_error_envelope_on_auth_failure(authenticate
 
 
 @respx.mock
+async def test_count_projects_returns_only_count(authenticated_user):
+    respx.get("https://api.ticktick.com/open/v1/project").mock(
+        return_value=httpx.Response(200, json=[
+            {"id": "p1", "name": "Work"},
+            {"id": "p2", "name": "Personal"},
+        ])
+    )
+    result = await tools.count_projects()
+    assert result == {"count": 2}
+
+
+@respx.mock
+async def test_count_projects_returns_error_envelope_on_auth_failure(authenticated_user):
+    respx.get("https://api.ticktick.com/open/v1/project").mock(
+        return_value=httpx.Response(401, json={"error": "unauthorized"})
+    )
+    result = await tools.count_projects()
+    assert result["count"] == 0
+    assert "error" in result
+
+
+@respx.mock
 async def test_create_task_round_trip(authenticated_user):
     respx.post("https://api.ticktick.com/open/v1/task").mock(
         return_value=httpx.Response(200, json={"id": "new", "title": "T"})
