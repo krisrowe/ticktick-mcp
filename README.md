@@ -231,9 +231,9 @@ ticktick-admin probe
 
 `probe` checks `/health`, then opens an MCP session and round-trips
 the tool list. Output names every registered tool — `list_projects`,
-`list_tasks`, `create_task`, `update_task`, `complete_task`,
-`delete_task`. If the deployment is healthy and tools are exposed,
-`probe` reports `MCP: ok`.
+`count_projects`, `list_tasks`, `create_task`, `update_task`,
+`complete_task`, `delete_task`. If the deployment is healthy and
+tools are exposed, `probe` reports `MCP: ok`.
 
 Add `--json` for structured output suitable for scripts and agents.
 
